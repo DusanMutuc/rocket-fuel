@@ -6,15 +6,7 @@ import HomeScreen from '../screens/HomeScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import PipelineScreen from '../screens/PipelineScreen';
 import ProspectListScreen from '../screens/ProspectListScreen';
-import TaskLogScreen1 from '../screens/TaskLogScreen1';
-import TaskLogScreen2 from '../screens/TaskLogScreen2';
-
-// Define the type for your stack navigator
-export type AppStackParamList = {
-    Main: undefined;
-    TaskLogScreen2: undefined;
-};
-
+import TaskLogScreen from '../screens/TaskLogScreen';
 const Tab = createBottomTabNavigator();
 
 function MainTabs() {
@@ -27,20 +19,18 @@ function MainTabs() {
         >
             <Tab.Screen name="Home" component={HomeScreen} />
             <Tab.Screen name="Progress" component={ProgressScreen} />
-            <Tab.Screen name="Log Task" component={TaskLogScreen1} />
+            <Tab.Screen name="Log Task" component={TaskLogScreen} />
             <Tab.Screen name="15/30 Pipeline" component={PipelineScreen} />
             <Tab.Screen name="Prospect List" component={ProspectListScreen} />
         </Tab.Navigator>
     );
 }
 
-const Stack = createNativeStackNavigator<AppStackParamList>();
+const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
     return (
         <Stack.Navigator initialRouteName="Main">
-            {/* This screen is used for navigation from TaskLogScreen1 */}
-            <Stack.Screen name="TaskLogScreen2" component={TaskLogScreen2} />
             <Stack.Screen
                 name="Main"
                 component={MainTabs}

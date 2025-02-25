@@ -52,8 +52,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
         if (fetchError || !profile) {
             const { error: insertError } = await supabase.from('profiles').insert({
-                id: user.id,
-                full_name: user.email,
+                id: user.id
             });
             if (insertError) {
                 console.error('Error creating profile:', insertError.message);
