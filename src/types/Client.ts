@@ -11,5 +11,6 @@ export interface Client {
     temperature: 'none' | 'lukewarm' | 'warm' | 'hot';  // Temperature status as an enum
     pipeline_note?: string;    // Note for clients in the pipeline
     prospect_note?: string;    // Note for clients in the prospect list
+    original_contact: string;        // ISO string or Date representing when the client was created
     created_at: string;        // ISO string or Date representing when the client was created
 }
