@@ -11,6 +11,7 @@ const HomeScreen = () => {
             text1: 'Skibidi!',
             text2: 'Whats yung blud cooking',
             position: 'bottom', // You can control the position
+            
             onPress: () => {
                 Toast.hide();
             },
@@ -24,5 +25,4 @@ const HomeScreen = () => {
         </View>
     );
 };
-
 export default HomeScreen;
