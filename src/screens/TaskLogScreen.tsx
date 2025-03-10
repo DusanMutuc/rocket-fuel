@@ -44,18 +44,17 @@ const TaskLogScreen = () => {
         }
 
         let errorOccurred = false;
-        for (let i = 0; i < amount; i++) {
-            const { error } = await supabase.from('tasks').insert([
-                {
-                    user_id: session.user.id,
-                    task_type_id: taskTypeId,
-                    created_at: new Date().toISOString(),
-                },
-            ]);
-            if (error) {
-                errorOccurred = true;
-                console.error('Error logging task:', error);
-            }
+        const { error } = await supabase.from('task_logs').insert([
+            {
+                user_id: session.user.id,
+                task_type_id: taskTypeId,
+                amount: amount,
+                created_at: new Date().toISOString(),
+            },
+        ]);
+        if (error) {
+            errorOccurred = true;
+            console.error('Error logging task:', error);
         }
 
         if (errorOccurred) {
