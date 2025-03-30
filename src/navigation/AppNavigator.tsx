@@ -21,7 +21,7 @@ function MainTabs() {
             <Tab.Screen name="Progress" component={ProgressScreen} />
             <Tab.Screen name="Log Task" component={TaskLogScreen} />
             <Tab.Screen name="15/30 Pipeline" component={PipelineScreen} />
-            <Tab.Screen name="Prospect List" component={ProspectListScreen} />
+            <Tab.Screen name="Contacts Page" component={ProspectListScreen} />
         </Tab.Navigator>
     );
 }
