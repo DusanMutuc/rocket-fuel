@@ -1,9 +1,9 @@
 // HomeScreen.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Button } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Provider as PaperProvider, Text, Button, Card, ProgressBar, Surface } from 'react-native-paper';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import ProgressBar from '../components/ProgressBar';
 
 interface WeeklyData {
     week_start: string; // ISO date string
@@ -75,8 +75,11 @@ const HomeScreen = () => {
     };
 
     return (
-        <View style={styles.container}>
-            <Text style={styles.weekLabel}>
+        // Using Paper's Surface as the main container for consistent theming.
+        // (Ideally, wrap your root component in a PaperProvider for global theming.)
+        <Surface style={styles.container}>
+            {/* Using Paper's Text with a variant prop for typography */}
+            <Text variant="headlineSmall" style={styles.weekLabel}>
                 Week {currentWeekIndex + 1}
             </Text>
             {currentWeek &&
@@ -86,27 +89,40 @@ const HomeScreen = () => {
                         ? (loggedAmount / taskType.minimal_amount) * 100
                         : 0;
                     return (
-                        <View key={taskType.task_type_id} style={styles.progressContainer}>
-                            <Text style={styles.label}>
-                                {taskType.name}: {loggedAmount} / {taskType.minimal_amount}
-                            </Text>
-                            <ProgressBar progress={progressPercent} />
-                        </View>
+                        // Using Paper's Card component for a styled progress block for each task.
+                        <Card key={taskType.task_type_id} style={styles.progressContainer}>
+                            <Card.Content>
+                                <Text style={styles.label}>
+                                    {taskType.name}: {loggedAmount} / {taskType.minimal_amount}
+                                </Text>
+                                {/* React Native Paper's ProgressBar expects a value between 0 and 1 */}
+                                <ProgressBar progress={progressPercent / 100} />
+                            </Card.Content>
+                        </Card>
                     );
                 })}
             <View style={styles.navigation}>
+                {/* Converted React Native Buttons to Paper Buttons with mode="contained" */}
                 <Button
-                    title="Previous Week"
+                    mode="contained"
                     onPress={() => setCurrentWeekIndex((prev) => Math.max(prev - 1, 0))}
                     disabled={currentWeekIndex === 0}
-                />
+                    style={styles.navButton}
+                >
+                    Previous Week
+                </Button>
                 <Button
-                    title="Next Week"
-                    onPress={() => setCurrentWeekIndex((prev) => Math.min(prev + 1, weeklyData.length - 1))}
+                    mode="contained"
+                    onPress={() =>
+                        setCurrentWeekIndex((prev) => Math.min(prev + 1, weeklyData.length - 1))
+                    }
                     disabled={weeklyData.length === 0 || currentWeekIndex === weeklyData.length - 1}
-                />
+                    style={styles.navButton}
+                >
+                    Next Week
+                </Button>
             </View>
-        </View>
+        </Surface>
     );
 };
 
@@ -116,6 +132,16 @@ const styles = StyleSheet.create({
     label: { fontSize: 16, marginBottom: 4 },
     weekLabel: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
     navigation: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 },
+    navButton: { flex: 1, marginHorizontal: 4 }
 });
+
+// Note: In your app's entry point, wrap your root component with PaperProvider for consistent theming.
+// Example:
+// const App = () => (
+//   <PaperProvider>
+//     <HomeScreen />
+//   </PaperProvider>
+// );
+// export default App;
 
 export default HomeScreen;

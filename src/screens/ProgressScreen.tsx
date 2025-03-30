@@ -1,13 +1,15 @@
+// ProgressScreen.tsx
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Button } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Button, Surface } from 'react-native-paper';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useFont } from '@shopify/react-native-skia';
-import { format, subDays } from 'date-fns'; // NEW: import subDays
+import { format, subDays } from 'date-fns';
 import { CartesianChart, Line } from 'victory-native';
 import Legend from '../components/Legend';
 
-// Define the allowed keys for your chart metrics.
+// Define allowed chart metrics.
 type ChartMetric =
     | 'asks'
     | 'follow_ups'
@@ -16,7 +18,7 @@ type ChartMetric =
     | 'handwritten_cards'
     | 'exercises';
 
-// Shape of rows returned from the RPC:
+// Shape of rows returned from the RPC.
 type RowWithAllTypes = {
     day: string;
     asks: number;
@@ -27,7 +29,7 @@ type RowWithAllTypes = {
     exercises: number;
 };
 
-// Define the shape for legend items.
+// Legend item shape.
 interface LegendItem {
     key: ChartMetric;
     label: string;
@@ -40,7 +42,7 @@ const ProgressScreen = () => {
     const [error, setError] = useState<string | undefined>();
     const font = useFont(require('../../assets/Fonts/SpaceMono-Regular.ttf'), 12);
 
-    // Legend data with keys restricted to ChartMetric.
+    // Legend data.
     const legendData: LegendItem[] = [
         { key: 'asks', label: 'Asks', color: 'red' },
         { key: 'follow_ups', label: 'Follow-ups', color: 'orange' },
@@ -52,16 +54,15 @@ const ProgressScreen = () => {
 
     // State to track which line is highlighted.
     const [selectedLine, setSelectedLine] = useState<ChartMetric | null>(null);
-
-    // NEW: Track whether the user wants to see weekly or all-time data
+    // Track whether the view mode is 'weekly' or 'alltime'.
     const [viewMode, setViewMode] = useState<'weekly' | 'alltime'>('weekly');
 
-    // Toggle highlight for a line when its legend item is pressed.
+    // Toggle highlight for a legend item.
     const handleLegendPress = (key: ChartMetric) => {
         setSelectedLine(selectedLine === key ? null : key);
     };
 
-    // NEW: A button tap toggles between weekly and alltime
+    // Toggle between weekly and all-time view modes.
     const toggleViewMode = () => {
         setViewMode((prev) => (prev === 'weekly' ? 'alltime' : 'weekly'));
     };
@@ -70,18 +71,18 @@ const ProgressScreen = () => {
         async function fetchData() {
             if (!user?.id) return;
 
-            // NEW: Decide how to set your date range based on viewMode
+            // Set date range based on viewMode.
             let startDate: string;
             let endDate: string;
 
             if (viewMode === 'weekly') {
-                // Last 7 days to current day
+                // Last 7 days to current day.
                 const oneWeekAgo = subDays(new Date(), 7);
                 startDate = format(oneWeekAgo, 'yyyy-MM-dd');
                 endDate = format(new Date(), 'yyyy-MM-dd');
             } else {
-                // “All time” from a fixed date in code, up through today
-                startDate = '2025-03-01'; // Or whatever earliest date you like
+                // "All time" from a fixed start date up to today.
+                startDate = '2025-03-01';
                 endDate = format(new Date(), 'yyyy-MM-dd');
             }
 
@@ -128,25 +129,26 @@ const ProgressScreen = () => {
             setChartData(transformed);
         }
 
-        // Include viewMode in dependencies so we fetch fresh data each time it changes
+        // Refetch data when user or viewMode changes.
         fetchData();
-    }, [user, viewMode]); // UPDATED: added viewMode
+    }, [user, viewMode]);
 
+    // Show a loader until the font is loaded.
     if (!font) {
         return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" />
-            </View>
+            <Surface style={styles.loaderContainer}>
+                <ActivityIndicator animating={true} size="large" />
+            </Surface>
         );
     }
 
     return (
-        <View style={styles.container}>
-            {/* NEW: A button to toggle weekly/all-time */}
-            <Button
-                title={viewMode === 'weekly' ? 'Switch to All Time' : 'Switch to Weekly'}
-                onPress={toggleViewMode}
-            />
+        // Using Paper's Surface for a consistent themed container.
+        <Surface style={styles.container}>
+            {/* Toggle button using Paper's Button */}
+            <Button mode="contained" onPress={toggleViewMode} style={styles.toggleButton}>
+                {viewMode === 'weekly' ? 'Switch to All Time' : 'Switch to Weekly'}
+            </Button>
 
             <View style={styles.chartWrapper}>
                 {chartData.length > 0 && (
@@ -174,7 +176,7 @@ const ProgressScreen = () => {
                                     {legendData.map((item) => (
                                         <Line
                                             key={item.key}
-                                            // Cast item.key so TypeScript knows it's a valid key of points.
+                                            // Casting to ensure TypeScript compatibility.
                                             points={points[item.key as keyof typeof points]}
                                             color={
                                                 selectedLine === null || selectedLine === item.key
@@ -196,25 +198,26 @@ const ProgressScreen = () => {
                         </CartesianChart>
                     </View>
                 )}
-                <View style={styles.legend}>
-                    <Legend
-                        items={legendData}
-                        onPress={handleLegendPress}
-                        selected={selectedLine}
-                    />
-                </View>
+                {/* Wrapping the Legend in a Surface for a paper-style look */}
+                <Surface style={styles.legend}>
+                    <Legend items={legendData} onPress={handleLegendPress} selected={selectedLine} />
+                </Surface>
             </View>
-        </View>
+        </Surface>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        // Center content for demonstration
         justifyContent: 'flex-start',
         alignItems: 'center',
         paddingTop: 20,
+    },
+    loaderContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     chartWrapper: {
         flex: 1,
@@ -227,11 +230,12 @@ const styles = StyleSheet.create({
         margin: 10,
         borderColor: 'black',
         borderWidth: 3,
-        borderCurve: 'circular',
         borderRadius: 10,
         backgroundColor: '#fff',
-        fontSize: 24,
         padding: 10,
+    },
+    toggleButton: {
+        marginVertical: 10,
     },
 });
 
