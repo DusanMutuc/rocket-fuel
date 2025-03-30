@@ -1,4 +1,3 @@
-// src/screens/ProspectListScreen.tsx
 import React, { useState, useEffect } from 'react';
 import {
     View,
@@ -7,204 +6,332 @@ import {
     StyleSheet,
     ActivityIndicator,
     Modal,
-    TextInput,
-    Button,
     TouchableOpacity,
+    Button,
+    TextInput,
     ScrollView,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Client } from '../types/Client';
 import Toast from 'react-native-toast-message';
 
-const ProspectListScreen = () => {
+const ContactsScreen = () => {
     const { user } = useAuth();
-    const [clients, setClients] = useState<Client[]>([]);
+    const [contacts, setContacts] = useState<any[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Modal visibility states
-    const [modalVisible, setModalVisible] = useState(false);        // for Add Prospect
-    const [editModalVisible, setEditModalVisible] = useState(false); // for Edit Prospect
+    // Picker for contact type – possible values: "Prospect", "SOI", "Agent"
+    const [selectedType, setSelectedType] = useState<string>('Prospect');
 
-    // Fields for "Add Prospect"
-    const [firstName, setFirstName] = useState('');
-    const [lastName, setLastName] = useState('');
-    const [email, setEmail] = useState('');
-    const [phoneNumber, setPhoneNumber] = useState('');
-    const [address, setAddress] = useState('');
-    const [originalContact, setOriginalContact] = useState(new Date().toISOString());
-    const [prospectNote, setProspectNote] = useState('');
+    // ---------- Modal Visibility States ----------
+    // For adding/editing clients (Prospect and SOI)
+    const [addClientModalVisible, setAddClientModalVisible] = useState(false);
+    const [editClientModalVisible, setEditClientModalVisible] = useState(false);
+    // For adding/editing agents
+    const [addAgentModalVisible, setAddAgentModalVisible] = useState(false);
+    const [editAgentModalVisible, setEditAgentModalVisible] = useState(false);
 
-    // Fields for "Edit Prospect"
-    const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-    const [editFirstName, setEditFirstName] = useState('');
-    const [editLastName, setEditLastName] = useState('');
-    const [editEmail, setEditEmail] = useState('');
-    const [editPhoneNumber, setEditPhoneNumber] = useState('');
-    const [editAddress, setEditAddress] = useState('');
-    const [editOriginalContact, setEditOriginalContact] = useState(new Date().toISOString());
-    const [editProspectNote, setEditProspectNote] = useState('');
+    // ---------- State for Clients (Prospect & SOI) ----------
+    const [clientFirstName, setClientFirstName] = useState('');
+    const [clientLastName, setClientLastName] = useState('');
+    const [clientEmail, setClientEmail] = useState('');
+    const [clientPhone, setClientPhone] = useState('');
+    const [clientAddress, setClientAddress] = useState('');
+    const [clientNote, setClientNote] = useState('');
+    // Original contact date for Prospect only
+    const [clientOriginalContact, setClientOriginalContact] = useState(new Date());
+    const [showClientDatePicker, setShowClientDatePicker] = useState(false);
+    const [selectedClient, setSelectedClient] = useState<any>(null);
 
+    // ---------- State for Agents ----------
+    const [agentName, setAgentName] = useState('');
+    const [agentPhone, setAgentPhone] = useState('');
+    const [agentEmail, setAgentEmail] = useState('');
+    const [agentAddress, setAgentAddress] = useState('');
+    const [agentBrokerage, setAgentBrokerage] = useState('');
+    const [agentNotes, setAgentNotes] = useState('');
+    const [agentOriginalContact, setAgentOriginalContact] = useState(new Date());
+    const [showAgentDatePicker, setShowAgentDatePicker] = useState(false);
+    const [selectedAgent, setSelectedAgent] = useState<any>(null);
+
+    // ---------- Data Fetching ----------
     useEffect(() => {
-        const fetchClients = async () => {
+        const fetchContacts = async () => {
             if (!user) {
                 setError('User not logged in');
                 setLoading(false);
                 return;
             }
-            const { data, error } = await supabase
-                .from('clients')
-                .select('*')
-                .eq('user_id', user.id);
-
-            if (error) {
-                setError(error.message);
-            } else if (data) {
-                setClients(data);
+            setLoading(true);
+            if (selectedType === 'Agent') {
+                // Fetch agents
+                const { data, error } = await supabase.rpc('get_agents_by_user', { uid: user.id });
+                if (error) setError(error.message);
+                else setContacts(data);
+            } else {
+                // Fetch clients with type Prospect or SOI
+                const { data, error } = await supabase.rpc('get_clients_by_client_type', {
+                    uid: user.id,
+                    client_type_name: selectedType,
+                });
+                if (error) setError(error.message);
+                else setContacts(data);
             }
             setLoading(false);
         };
+        fetchContacts();
+    }, [user, selectedType]);
 
-        fetchClients();
-    }, [user]);
-
-    // Refresh clients after adding or editing a prospect
-    const refreshClients = async () => {
+    const refreshContacts = async () => {
         if (!user) return;
         setLoading(true);
-        const { data, error } = await supabase
-            .from('clients')
-            .select('*')
-            .eq('user_id', user.id);
-
-        if (error) {
-            setError(error.message);
-        } else if (data) {
-            setClients(data);
+        if (selectedType === 'Agent') {
+            const { data, error } = await supabase.rpc('get_agents_by_user', { uid: user.id });
+            if (error) setError(error.message);
+            else setContacts(data);
+        } else {
+            const { data, error } = await supabase.rpc('get_clients_by_client_type', {
+                uid: user.id,
+                client_type_name: selectedType,
+            });
+            if (error) setError(error.message);
+            else setContacts(data);
         }
         setLoading(false);
     };
 
-    // When a user taps an existing prospect, open the edit modal
-    const handleEditPress = (client: Client) => {
-        setSelectedClient(client);
-
-        // Pre-fill edit fields with the current data
-        setEditFirstName(client.first_name);
-        setEditLastName(client.last_name || '');
-        setEditEmail(client.email || '');
-        setEditPhoneNumber(client.phone_number || '');
-        setEditAddress(client.address || '');
-        setEditOriginalContact(client.original_contact || new Date().toISOString());
-        setEditProspectNote(client.prospect_note || '');
-
-        setEditModalVisible(true);
+    // ---------- Rendering Contacts ----------
+    const renderItem = ({ item }: { item: any }) => {
+        if (selectedType === 'Agent') {
+            return (
+                <TouchableOpacity onPress={() => handleAgentEdit(item)}>
+                    <View style={styles.itemContainer}>
+                        <Text style={styles.name}>{item.name}</Text>
+                        {item.email && <Text>Email: {item.email}</Text>}
+                        {item.phone_number && <Text>Phone: {item.phone_number}</Text>}
+                        {item.address && <Text>Address: {item.address}</Text>}
+                        {item.brokerage && <Text>Brokerage: {item.brokerage}</Text>}
+                        {item.original_contact && (
+                            <Text>Original Contact: {new Date(item.original_contact).toLocaleDateString()}</Text>
+                        )}
+                        {item.notes && <Text>Notes: {item.notes}</Text>}
+                    </View>
+                </TouchableOpacity>
+            );
+        } else {
+            return (
+                <TouchableOpacity onPress={() => handleClientEdit(item)}>
+                    <View style={styles.itemContainer}>
+                        <Text style={styles.name}>
+                            {item.first_name} {item.last_name || ''}
+                        </Text>
+                        {item.email && <Text>Email: {item.email}</Text>}
+                        {item.phone_number && <Text>Phone: {item.phone_number}</Text>}
+                        {item.address && <Text>Address: {item.address}</Text>}
+                        {selectedType === 'Prospect' && item.original_contact && (
+                            <Text>
+                                Original Contact: {new Date(item.original_contact).toLocaleDateString()}
+                            </Text>
+                        )}
+                        {item.prospect_note && <Text>Note: {item.prospect_note}</Text>}
+                        <Text style={styles.createdAt}>
+                            Logged At: {new Date(item.created_at).toLocaleString()}
+                        </Text>
+                    </View>
+                </TouchableOpacity>
+            );
+        }
     };
 
-    const handleUpdateProspect = async () => {
+    // ---------- Editing Handlers ----------
+    const handleClientEdit = (client: any) => {
+        setSelectedClient(client);
+        setClientFirstName(client.first_name);
+        setClientLastName(client.last_name || '');
+        setClientEmail(client.email || '');
+        setClientPhone(client.phone_number || '');
+        setClientAddress(client.address || '');
+        setClientNote(client.prospect_note || '');
+        if (selectedType === 'Prospect') {
+            setClientOriginalContact(client.original_contact ? new Date(client.original_contact) : new Date());
+        }
+        setEditClientModalVisible(true);
+    };
+
+    const handleUpdateClient = async () => {
         if (!user || !selectedClient) {
-            Toast.show({ type: 'error', text1: 'No user or client selected' });
+            Toast.show({ type: 'error', text1: 'No user or contact selected' });
             return;
         }
-
-        // Basic validation
-        if (!editFirstName.trim()) {
+        if (!clientFirstName.trim()) {
             Toast.show({ type: 'error', text1: 'First name is required' });
             return;
         }
-
+        const payload: any = {
+            first_name: clientFirstName,
+            last_name: clientLastName || null,
+            email: clientEmail || null,
+            phone_number: clientPhone || null,
+            address: clientAddress || null,
+            prospect_note: clientNote,
+        };
+        if (selectedType === 'Prospect') {
+            payload.original_contact = clientOriginalContact.toISOString();
+        }
         const { error } = await supabase
             .from('clients')
-            .update({
-                first_name: editFirstName,
-                last_name: editLastName || null,
-                email: editEmail || null,
-                phone_number: editPhoneNumber || null,
-                address: editAddress || null,
-                original_contact: editOriginalContact,
-                prospect_note: editProspectNote,
-            })
+            .update(payload)
             .eq('client_id', selectedClient.client_id);
-
         if (error) {
-            Toast.show({ type: 'error', text1: 'Error updating prospect', text2: error.message });
+            Toast.show({ type: 'error', text1: 'Error updating contact', text2: error.message });
         } else {
-            Toast.show({ type: 'success', text1: 'Prospect updated successfully' });
-            setEditModalVisible(false);
+            Toast.show({ type: 'success', text1: 'Contact updated successfully' });
+            setEditClientModalVisible(false);
             setSelectedClient(null);
-            refreshClients();
+            refreshContacts();
         }
     };
 
-    // Function to add a new prospect to the database
-    const handleAddProspect = async () => {
+    const handleAgentEdit = (agent: any) => {
+        setSelectedAgent(agent);
+        setAgentName(agent.name);
+        setAgentPhone(agent.phone_number || '');
+        setAgentEmail(agent.email || '');
+        setAgentAddress(agent.address || '');
+        setAgentBrokerage(agent.brokerage || '');
+        setAgentNotes(agent.notes || '');
+        setAgentOriginalContact(agent.original_contact ? new Date(agent.original_contact) : new Date());
+        setEditAgentModalVisible(true);
+    };
+
+    const handleUpdateAgent = async () => {
+        if (!user || !selectedAgent) {
+            Toast.show({ type: 'error', text1: 'No user or agent selected' });
+            return;
+        }
+        if (!agentName.trim()) {
+            Toast.show({ type: 'error', text1: 'Name is required' });
+            return;
+        }
+        // Format the agent's original_contact date as "yyyy-mm-dd" (same as prospect)
+        const formattedDate = agentOriginalContact.toISOString().split('T')[0];
+
+        const payload = {
+            name: agentName,
+            phone_number: agentPhone || null,
+            email: agentEmail || null,
+            address: agentAddress || null,
+            brokerage: agentBrokerage || null,
+            original_contact: formattedDate,
+            notes: agentNotes || '',
+        };
+
+        console.log("Updating agent with id:", selectedAgent.id, "payload:", payload);
+
+        const { error } = await supabase
+            .from('agent_contacts')
+            .update(payload)
+            .eq('id', selectedAgent.id);
+
+        if (error) {
+            Toast.show({ type: 'error', text1: 'Error updating agent', text2: error.message });
+        } else {
+            Toast.show({ type: 'success', text1: 'Agent updated successfully' });
+            setEditAgentModalVisible(false);
+            setSelectedAgent(null);
+            refreshContacts();
+        }
+    };
+
+
+
+    // ---------- Adding Handlers ----------
+    const handleAddClient = async () => {
         if (!user) {
             Toast.show({ type: 'error', text1: 'User not logged in' });
             return;
         }
-        // Basic validation: ensure at least first name is provided.
-        if (!firstName.trim()) {
+        if (!clientFirstName.trim()) {
             Toast.show({ type: 'error', text1: 'First name is required' });
             return;
         }
-
-        const { error } = await supabase.from('clients').insert([
-            {
-                user_id: user.id,
-                first_name: firstName,
-                last_name: lastName || null,
-                email: email || null,
-                phone_number: phoneNumber || null,
-                address: address || null,
-                is_in_pipeline: false, // default value
-                temperature: 'none',   // default value
-                prospect_note: prospectNote || '',
-                pipeline_note: '',     // default empty note
-                original_contact: originalContact,
-                created_at: new Date().toISOString(),
-            },
-        ]);
-
+        const payload: any = {
+            user_id: user.id,
+            first_name: clientFirstName,
+            last_name: clientLastName || null,
+            email: clientEmail || null,
+            phone_number: clientPhone || null,
+            address: clientAddress || null,
+            prospect_note: clientNote || '',
+            created_at: new Date().toISOString(),
+        };
+        if (selectedType === 'Prospect') {
+            payload.original_contact = clientOriginalContact.toISOString();
+        }
+        const { error } = await supabase.from('clients').insert([payload]);
         if (error) {
-            Toast.show({ type: 'error', text1: 'Error adding prospect', text2: error.message });
+            Toast.show({ type: 'error', text1: 'Error adding contact', text2: error.message });
         } else {
-            Toast.show({ type: 'success', text1: 'Prospect added successfully' });
-            setModalVisible(false);
-
-            // Clear fields after adding
-            setFirstName('');
-            setLastName('');
-            setEmail('');
-            setPhoneNumber('');
-            setAddress('');
-            setProspectNote('');
-            setOriginalContact(new Date().toISOString());
-
-            refreshClients();
+            Toast.show({ type: 'success', text1: 'Contact added successfully' });
+            setAddClientModalVisible(false);
+            setClientFirstName('');
+            setClientLastName('');
+            setClientEmail('');
+            setClientPhone('');
+            setClientAddress('');
+            setClientNote('');
+            setClientOriginalContact(new Date());
+            refreshContacts();
         }
     };
 
-    const renderItem = ({ item }: { item: Client }) => (
-        <TouchableOpacity onPress={() => handleEditPress(item)}>
-            <View style={styles.itemContainer}>
-                <Text style={styles.name}>
-                    {item.first_name} {item.last_name || ''}
-                </Text>
-                {item.email && <Text>Email: {item.email}</Text>}
-                {item.phone_number && <Text>Phone: {item.phone_number}</Text>}
-                {item.address && <Text>Address: {item.address}</Text>}
-                <Text>In Pipeline: {item.is_in_pipeline ? 'Yes' : 'No'}</Text>
-                {item.prospect_note && <Text>Note: {item.prospect_note}</Text>}
-                {item.original_contact && (
-                    <Text>Original Contact: {new Date(item.original_contact).toLocaleDateString()}</Text>
-                )}
-                <Text style={styles.createdAt}>
-                    Logged At: {new Date(item.created_at).toLocaleString()}
-                </Text>
-            </View>
-        </TouchableOpacity>
-    );
+    const handleAddAgent = async () => {
+        if (!user) {
+            Toast.show({ type: 'error', text1: 'User not logged in' });
+            return;
+        }
+        if (!agentName.trim()) {
+            Toast.show({ type: 'error', text1: 'Name is required' });
+            return;
+        }
+        const { error } = await supabase.from('agents').insert([
+            {
+                user_id: user.id,
+                name: agentName,
+                phone_number: agentPhone || null,
+                email: agentEmail || null,
+                address: agentAddress || null,
+                brokerage: agentBrokerage || null,
+                original_contact: agentOriginalContact.toISOString(),
+                notes: agentNotes || '',
+            },
+        ]);
+        if (error) {
+            Toast.show({ type: 'error', text1: 'Error adding agent', text2: error.message });
+        } else {
+            Toast.show({ type: 'success', text1: 'Agent added successfully' });
+            setAddAgentModalVisible(false);
+            setAgentName('');
+            setAgentPhone('');
+            setAgentEmail('');
+            setAgentAddress('');
+            setAgentBrokerage('');
+            setAgentNotes('');
+            setAgentOriginalContact(new Date());
+            refreshContacts();
+        }
+    };
+
+    // Determine add button text based on selected type
+    const addButtonText =
+        selectedType === 'Agent'
+            ? 'Add Agent'
+            : selectedType === 'SOI'
+                ? 'Add SOI'
+                : 'Add Prospect';
 
     if (loading) {
         return (
@@ -213,7 +340,6 @@ const ProspectListScreen = () => {
             </View>
         );
     }
-
     if (error) {
         return (
             <View style={styles.center}>
@@ -224,154 +350,277 @@ const ProspectListScreen = () => {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.header}>Prospect List</Text>
+            <Text style={styles.header}>Contacts Page</Text>
+            {/* Picker for selecting contact type */}
+            <View style={styles.pickerContainer}>
+                <Picker
+                    selectedValue={selectedType}
+                    onValueChange={(itemValue) => setSelectedType(itemValue)}
+                    style={styles.picker}
+                    mode="dialog"
+                >
+                    <Picker.Item label="Prospect" value="Prospect" />
+                    <Picker.Item label="SOI" value="SOI" />
+                    <Picker.Item label="Agent" value="Agent" />
+                </Picker>
+            </View>
             <FlatList
-                data={clients}
-                keyExtractor={(item) => item.client_id}
+                data={contacts}
+                keyExtractor={(item) => (item.client_id ? item.client_id : item.id.toString())}
                 renderItem={renderItem}
                 contentContainerStyle={styles.listContent}
             />
-
-            {/* Button to open the "Add Prospect" modal */}
-            <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
-                <Text style={styles.addButtonText}>Add Prospect</Text>
+            <TouchableOpacity
+                style={styles.addButton}
+                onPress={() =>
+                    selectedType === 'Agent'
+                        ? setAddAgentModalVisible(true)
+                        : setAddClientModalVisible(true)
+                }
+            >
+                <Text style={styles.addButtonText}>{addButtonText}</Text>
             </TouchableOpacity>
 
-            {/* "Add Prospect" Modal */}
+            {/* ---------- Add Client Modal (for Prospect and SOI) ---------- */}
             <Modal
-                visible={modalVisible}
+                visible={addClientModalVisible}
                 transparent
                 animationType="slide"
-                onRequestClose={() => setModalVisible(false)}
+                onRequestClose={() => setAddClientModalVisible(false)}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <ScrollView>
-                            <Text style={styles.modalHeader}>Add New Prospect</Text>
-
-                            <Text style={styles.label}>First Name (mandatory)</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={firstName}
-                                onChangeText={setFirstName}
-                            />
-
+                            <Text style={styles.modalHeader}>
+                                {selectedType === 'SOI' ? 'Add SOI' : 'Add Prospect'}
+                            </Text>
+                            <Text style={styles.label}>First Name</Text>
+                            <TextInput style={styles.input} value={clientFirstName} onChangeText={setClientFirstName} />
                             <Text style={styles.label}>Last Name</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={lastName}
-                                onChangeText={setLastName}
-                            />
-
+                            <TextInput style={styles.input} value={clientLastName} onChangeText={setClientLastName} />
                             <Text style={styles.label}>Email</Text>
                             <TextInput
                                 style={styles.input}
-                                value={email}
-                                onChangeText={setEmail}
+                                value={clientEmail}
+                                onChangeText={setClientEmail}
                                 keyboardType="email-address"
                             />
-
                             <Text style={styles.label}>Phone</Text>
                             <TextInput
                                 style={styles.input}
-                                value={phoneNumber}
-                                onChangeText={setPhoneNumber}
+                                value={clientPhone}
+                                onChangeText={setClientPhone}
                                 keyboardType="phone-pad"
                             />
-
                             <Text style={styles.label}>Address</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={address}
-                                onChangeText={setAddress}
-                            />
-
-                            <Text style={styles.label}>Prospect Note</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={prospectNote}
-                                onChangeText={setProspectNote}
-                            />
-
-                            <Text style={styles.label}>Original Contact</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={originalContact}
-                                onChangeText={setOriginalContact}
-                            />
-
-                            <Button title="Add Prospect" onPress={handleAddProspect} />
-                            <Button title="Cancel" onPress={() => setModalVisible(false)} color="red" />
+                            <TextInput style={styles.input} value={clientAddress} onChangeText={setClientAddress} />
+                            <Text style={styles.label}>Note</Text>
+                            <TextInput style={styles.input} value={clientNote} onChangeText={setClientNote} />
+                            {/* Show original contact only for Prospect */}
+                            {selectedType === 'Prospect' && (
+                                <>
+                                    <Text style={styles.label}>Original Contact</Text>
+                                    <TouchableOpacity
+                                        style={styles.datePickerButton}
+                                        onPress={() => setShowClientDatePicker(true)}
+                                    >
+                                        <Text>{clientOriginalContact.toLocaleDateString()}</Text>
+                                    </TouchableOpacity>
+                                    {showClientDatePicker && (
+                                        <DateTimePicker
+                                            value={clientOriginalContact}
+                                            mode="date"
+                                            display="default"
+                                            onChange={(event, selectedDate) => {
+                                                setShowClientDatePicker(false);
+                                                if (selectedDate) setClientOriginalContact(selectedDate);
+                                            }}
+                                        />
+                                    )}
+                                </>
+                            )}
+                            <Button title="Add" onPress={handleAddClient} />
+                            <Button title="Cancel" onPress={() => setAddClientModalVisible(false)} color="red" />
                         </ScrollView>
                     </View>
                 </View>
             </Modal>
 
-            {/* "Edit Prospect" Modal */}
+            {/* ---------- Add Agent Modal ---------- */}
             <Modal
-                visible={editModalVisible}
+                visible={addAgentModalVisible}
                 transparent
                 animationType="slide"
-                onRequestClose={() => setEditModalVisible(false)}
+                onRequestClose={() => setAddAgentModalVisible(false)}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <ScrollView>
-                            <Text style={styles.modalHeader}>Edit Prospect</Text>
-
-                            <Text style={styles.label}>First Name</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={editFirstName}
-                                onChangeText={setEditFirstName}
-                            />
-
-                            <Text style={styles.label}>Last Name</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={editLastName}
-                                onChangeText={setEditLastName}
-                            />
-
-                            <Text style={styles.label}>Email</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={editEmail}
-                                onChangeText={setEditEmail}
-                                keyboardType="email-address"
-                            />
-
+                            <Text style={styles.modalHeader}>Add Agent</Text>
+                            <Text style={styles.label}>Name</Text>
+                            <TextInput style={styles.input} value={agentName} onChangeText={setAgentName} />
                             <Text style={styles.label}>Phone</Text>
                             <TextInput
                                 style={styles.input}
-                                value={editPhoneNumber}
-                                onChangeText={setEditPhoneNumber}
+                                value={agentPhone}
+                                onChangeText={setAgentPhone}
                                 keyboardType="phone-pad"
                             />
-
+                            <Text style={styles.label}>Email</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={agentEmail}
+                                onChangeText={setAgentEmail}
+                                keyboardType="email-address"
+                            />
                             <Text style={styles.label}>Address</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={editAddress}
-                                onChangeText={setEditAddress}
-                            />
-
-                            <Text style={styles.label}>Prospect Note</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={editProspectNote}
-                                onChangeText={setEditProspectNote}
-                            />
-
+                            <TextInput style={styles.input} value={agentAddress} onChangeText={setAgentAddress} />
+                            <Text style={styles.label}>Brokerage</Text>
+                            <TextInput style={styles.input} value={agentBrokerage} onChangeText={setAgentBrokerage} />
+                            <Text style={styles.label}>Notes</Text>
+                            <TextInput style={styles.input} value={agentNotes} onChangeText={setAgentNotes} />
                             <Text style={styles.label}>Original Contact</Text>
+                            <TouchableOpacity
+                                style={styles.datePickerButton}
+                                onPress={() => setShowAgentDatePicker(true)}
+                            >
+                                <Text>{agentOriginalContact.toLocaleDateString()}</Text>
+                            </TouchableOpacity>
+                            {showAgentDatePicker && (
+                                <DateTimePicker
+                                    value={agentOriginalContact}
+                                    mode="date"
+                                    display="default"
+                                    onChange={(event, selectedDate) => {
+                                        setShowAgentDatePicker(false);
+                                        if (selectedDate) setAgentOriginalContact(selectedDate);
+                                    }}
+                                />
+                            )}
+                            <Button title="Add" onPress={handleAddAgent} />
+                            <Button title="Cancel" onPress={() => setAddAgentModalVisible(false)} color="red" />
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ---------- Edit Client Modal ---------- */}
+            <Modal
+                visible={editClientModalVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setEditClientModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <ScrollView>
+                            <Text style={styles.modalHeader}>
+                                Edit {selectedType === 'SOI' ? 'SOI' : 'Prospect'}
+                            </Text>
+                            <Text style={styles.label}>First Name</Text>
+                            <TextInput style={styles.input} value={clientFirstName} onChangeText={setClientFirstName} />
+                            <Text style={styles.label}>Last Name</Text>
+                            <TextInput style={styles.input} value={clientLastName} onChangeText={setClientLastName} />
+                            <Text style={styles.label}>Email</Text>
                             <TextInput
                                 style={styles.input}
-                                value={editOriginalContact}
-                                onChangeText={setEditOriginalContact}
+                                value={clientEmail}
+                                onChangeText={setClientEmail}
+                                keyboardType="email-address"
                             />
+                            <Text style={styles.label}>Phone</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={clientPhone}
+                                onChangeText={setClientPhone}
+                                keyboardType="phone-pad"
+                            />
+                            <Text style={styles.label}>Address</Text>
+                            <TextInput style={styles.input} value={clientAddress} onChangeText={setClientAddress} />
+                            <Text style={styles.label}>Note</Text>
+                            <TextInput style={styles.input} value={clientNote} onChangeText={setClientNote} />
+                            {selectedType === 'Prospect' && (
+                                <>
+                                    <Text style={styles.label}>Original Contact</Text>
+                                    <TouchableOpacity
+                                        style={styles.datePickerButton}
+                                        onPress={() => setShowClientDatePicker(true)}
+                                    >
+                                        <Text>{clientOriginalContact.toLocaleDateString()}</Text>
+                                    </TouchableOpacity>
+                                    {showClientDatePicker && (
+                                        <DateTimePicker
+                                            value={clientOriginalContact}
+                                            mode="date"
+                                            display="default"
+                                            onChange={(event, selectedDate) => {
+                                                setShowClientDatePicker(false);
+                                                if (selectedDate) setClientOriginalContact(selectedDate);
+                                            }}
+                                        />
+                                    )}
+                                </>
+                            )}
+                            <Button title="Save Changes" onPress={handleUpdateClient} />
+                            <Button title="Cancel" onPress={() => setEditClientModalVisible(false)} color="red" />
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
 
-                            <Button title="Save Changes" onPress={handleUpdateProspect} />
-                            <Button title="Cancel" onPress={() => setEditModalVisible(false)} color="red" />
+            {/* ---------- Edit Agent Modal ---------- */}
+            <Modal
+                visible={editAgentModalVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setEditAgentModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <ScrollView>
+                            <Text style={styles.modalHeader}>Edit Agent</Text>
+                            <Text style={styles.label}>Name</Text>
+                            <TextInput style={styles.input} value={agentName} onChangeText={setAgentName} />
+                            <Text style={styles.label}>Phone</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={agentPhone}
+                                onChangeText={setAgentPhone}
+                                keyboardType="phone-pad"
+                            />
+                            <Text style={styles.label}>Email</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={agentEmail}
+                                onChangeText={setAgentEmail}
+                                keyboardType="email-address"
+                            />
+                            <Text style={styles.label}>Address</Text>
+                            <TextInput style={styles.input} value={agentAddress} onChangeText={setAgentAddress} />
+                            <Text style={styles.label}>Brokerage</Text>
+                            <TextInput style={styles.input} value={agentBrokerage} onChangeText={setAgentBrokerage} />
+                            <Text style={styles.label}>Notes</Text>
+                            <TextInput style={styles.input} value={agentNotes} onChangeText={setAgentNotes} />
+                            <Text style={styles.label}>Original Contact</Text>
+                            <TouchableOpacity
+                                style={styles.datePickerButton}
+                                onPress={() => setShowAgentDatePicker(true)}
+                            >
+                                <Text>{agentOriginalContact.toLocaleDateString()}</Text>
+                            </TouchableOpacity>
+                            {showAgentDatePicker && (
+                                <DateTimePicker
+                                    value={agentOriginalContact}
+                                    mode="date"
+                                    display="default"
+                                    onChange={(event, selectedDate) => {
+                                        setShowAgentDatePicker(false);
+                                        if (selectedDate) setAgentOriginalContact(selectedDate);
+                                    }}
+                                />
+                            )}
+                            <Button title="Save Changes" onPress={handleUpdateAgent} />
+                            <Button title="Cancel" onPress={() => setEditAgentModalVisible(false)} color="red" />
                         </ScrollView>
                     </View>
                 </View>
@@ -381,82 +630,23 @@ const ProspectListScreen = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        padding: 16,
-        backgroundColor: '#fff',
-    },
-    center: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    header: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginBottom: 16,
-        textAlign: 'center',
-    },
-    listContent: {
-        paddingBottom: 16,
-    },
-    itemContainer: {
-        borderWidth: 1,
-        borderColor: '#ccc',
-        padding: 12,
-        borderRadius: 6,
-        marginBottom: 12,
-    },
-    name: {
-        fontSize: 18,
-        fontWeight: '600',
-    },
-    createdAt: {
-        fontSize: 12,
-        color: '#555',
-        marginTop: 4,
-    },
-    addButton: {
-        backgroundColor: 'tomato',
-        padding: 12,
-        borderRadius: 6,
-        alignItems: 'center',
-        marginTop: 16,
-    },
-    addButtonText: {
-        color: '#fff',
-        fontSize: 16,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalContent: {
-        width: '80%',
-        backgroundColor: '#fff',
-        padding: 20,
-        borderRadius: 8,
-        maxHeight: '80%',
-    },
-    modalHeader: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginBottom: 12,
-        textAlign: 'center',
-    },
-    label: {
-        fontWeight: '600',
-        marginVertical: 4,
-    },
-    input: {
-        borderWidth: 1,
-        borderColor: '#ccc',
-        padding: 8,
-        marginBottom: 12,
-        borderRadius: 4,
-    },
+    container: { flex: 1, padding: 16, backgroundColor: '#fff' },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    header: { fontSize: 24, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' },
+    pickerContainer: { borderWidth: 1, borderColor: '#ccc', borderRadius: 4, overflow: 'hidden', marginBottom: 16 },
+    picker: { width: '100%', height: 50 },
+    listContent: { paddingBottom: 16 },
+    itemContainer: { borderWidth: 1, borderColor: '#ccc', padding: 12, borderRadius: 6, marginBottom: 12 },
+    name: { fontSize: 18, fontWeight: '600' },
+    createdAt: { fontSize: 12, color: '#555', marginTop: 4 },
+    addButton: { backgroundColor: 'tomato', padding: 12, borderRadius: 6, alignItems: 'center', marginTop: 16 },
+    addButtonText: { color: '#fff', fontSize: 16 },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+    modalContent: { width: '80%', backgroundColor: '#fff', padding: 20, borderRadius: 8, maxHeight: '80%' },
+    modalHeader: { fontSize: 20, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' },
+    label: { fontWeight: '600', marginVertical: 4 },
+    input: { borderWidth: 1, borderColor: '#ccc', padding: 8, marginBottom: 12, borderRadius: 4 },
+    datePickerButton: { borderWidth: 1, borderColor: '#ccc', padding: 12, borderRadius: 4, marginBottom: 12, alignItems: 'center' },
 });
 
-export default ProspectListScreen;
+export default ContactsScreen;
