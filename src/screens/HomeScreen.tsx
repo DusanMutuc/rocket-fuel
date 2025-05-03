@@ -1,9 +1,26 @@
-// HomeScreen.tsx
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Provider as PaperProvider, Text, Button, Card, ProgressBar, Surface } from 'react-native-paper';
+import React, { useState, useCallback } from 'react';
+import {
+    StyleSheet,
+    View,
+    Dimensions,
+    TouchableOpacity,
+} from 'react-native';
+import {
+    Text,
+    Button,
+    Card,
+    ProgressBar,
+    Surface,
+    Portal,
+    Dialog,
+    IconButton,
+    Snackbar,
+    DefaultTheme,
+} from 'react-native-paper';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useFocusEffect } from '@react-navigation/native';
+import PopoverTooltip from '../components/PopoverTooltip';
 
 interface WeeklyData {
     week_start: string; // ISO date string
@@ -19,10 +36,52 @@ interface TaskType {
     task_type_id: number;
     name: string;
     minimal_amount: number;
+    optimal_amount: number;
 }
 
-// Exclude 'week_start' so that only numeric keys remain.
 type TaskKey = Exclude<keyof WeeklyData, 'week_start'>;
+
+const formatTaskName = (name: string): string => {
+    return name
+        .split('_')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+};
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const guidelineBaseWidth = 375;
+const scale = (size: number) => (SCREEN_WIDTH / guidelineBaseWidth) * size;
+
+const TaskProgressBar = ({
+    loggedAmount,
+    minimalAmount,
+    optimalAmount,
+}: {
+    loggedAmount: number;
+    minimalAmount: number;
+    optimalAmount: number;
+}) => {
+    const [barWidth, setBarWidth] = useState(0);
+    const progress = optimalAmount ? loggedAmount / optimalAmount : 0;
+    const thresholdPosition = optimalAmount ? (minimalAmount / optimalAmount) * barWidth : 0;
+
+    return (
+        <View
+            style={styles.progressBarContainer}
+            onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
+        >
+            <ProgressBar progress={progress} style={styles.progressBar} />
+            {optimalAmount !== minimalAmount && (
+                <View
+                    style={[
+                        styles.thresholdLine,
+                        { left: thresholdPosition - styles.thresholdLine.width / 2 },
+                    ]}
+                />
+            )}
+        </View>
+    );
+};
 
 const HomeScreen = () => {
     const { user } = useAuth();
@@ -30,79 +89,132 @@ const HomeScreen = () => {
     const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
     const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
 
-    useEffect(() => {
+    // Modal
+    const [modalVisible, setModalVisible] = useState(false);
+    const [selectedTaskType, setSelectedTaskType] = useState<TaskType | null>(null);
+    const [newWeeklyTotal, setNewWeeklyTotal] = useState<number>(0);
+
+    // Snackbar
+    const [snackbarVisible, setSnackbarVisible] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState('');
+
+    // Remove custom tooltip state (now using PopoverTooltip component)
+
+    const fetchWeeklyData = async () => {
         if (!user) return;
+        const courseStart = '2025-03-12';
+        const { data, error } = await supabase.rpc('get_weekly_task_counts', {
+            course_start: courseStart,
+            uid: user.id,
+        });
+        if (error) {
+            console.error('Error fetching weekly task counts:', error);
+        } else {
+            setWeeklyData(data);
+        }
+    };
 
-        const fetchWeeklyData = async () => {
-            // Use your desired course start date.
-            const courseStart = '2025-02-27';
-            const { data, error } = await supabase.rpc('get_weekly_task_counts', {
-                course_start: courseStart,
-                uid: user.id
-            });
-            if (error) {
-                console.error('Error fetching weekly task counts:', error);
-            } else {
-                setWeeklyData(data);
-            }
-        };
-
-        const fetchTaskTypes = async () => {
-            const { data, error } = await supabase.from('task_types').select('*');
-            if (error) {
-                console.error('Error fetching task types:', error);
-            } else {
-                setTaskTypes(data);
-            }
-        };
-
-        fetchWeeklyData();
-        fetchTaskTypes();
-    }, [user]);
+    useFocusEffect(
+        useCallback(() => {
+            if (!user) return;
+            fetchWeeklyData();
+            const fetchTaskTypes = async () => {
+                const { data, error } = await supabase.from('task_types').select('*');
+                if (error) {
+                    console.error('Error fetching task types:', error);
+                } else {
+                    setTaskTypes(data);
+                }
+            };
+            fetchTaskTypes();
+        }, [user])
+    );
 
     const currentWeek = weeklyData[currentWeekIndex];
 
-    // Helper to get logged amount for a given task type.
-    // Converts the singular task name to the plural key used in weeklyData.
     const getLoggedAmountForTask = (taskName: string): number => {
         if (!currentWeek) return 0;
-        // Convert to lower-case and replace spaces/hyphens with underscores.
         const singularKey = taskName.toLowerCase().replace(/[\s-]+/g, '_');
-        // Append 's' if it doesn't already end in 's'
         const key = singularKey.endsWith('s') ? singularKey : singularKey + 's';
         const value = currentWeek[key as TaskKey];
         return typeof value === 'number' ? value : 0;
     };
 
+    const handleProgressPress = (taskType: TaskType) => {
+        if (!currentWeek) return;
+        setSelectedTaskType(taskType);
+        const currentTotal = getLoggedAmountForTask(taskType.name);
+        setNewWeeklyTotal(currentTotal);
+        setModalVisible(true);
+    };
+
+    const handleSaveAll = async () => {
+        if (!user || !selectedTaskType || !currentWeek) return;
+        const { error } = await supabase.rpc('update_weekly_task_logs', {
+            _user_id: user.id,
+            _task_type_id: selectedTaskType.task_type_id,
+            _week_start: currentWeek.week_start,
+            _new_total: newWeeklyTotal,
+        });
+        if (error) {
+            setSnackbarMessage('Error updating logs');
+        } else {
+            setSnackbarMessage('Weekly total updated successfully');
+        }
+        setSnackbarVisible(true);
+        await fetchWeeklyData();
+        setModalVisible(false);
+    };
+
+    const customComponentTheme = { ...DefaultTheme, roundness: 4 };
+
     return (
-        // Using Paper's Surface as the main container for consistent theming.
-        // (Ideally, wrap your root component in a PaperProvider for global theming.)
         <Surface style={styles.container}>
-            {/* Using Paper's Text with a variant prop for typography */}
-            <Text variant="headlineSmall" style={styles.weekLabel}>
-                Week {currentWeekIndex + 1}
-            </Text>
+            <PopoverTooltip
+                tooltipText={
+                    "Welcome to your Home Screen! Here you can:\n\u2022 track weekly tasks\n\u2022 adjust the quantities if needed\n\u2022 navigate between weeks.\n\nThe red lines on some progression bars represent the minimal weekly amounts you should aim for!"
+                }
+            />
+            <View style={styles.headerRow}>
+                <Text variant="headlineSmall" style={styles.weekLabel}>
+                    Week {currentWeekIndex + 1}
+                </Text>
+                {/* Use standardized PopoverTooltip for the tooltip icon */}
+                
+            </View>
+
+            {/* Render each task */}
             {currentWeek &&
-                taskTypes.map((taskType) => {
-                    const loggedAmount = getLoggedAmountForTask(taskType.name);
-                    const progressPercent = taskType.minimal_amount
-                        ? (loggedAmount / taskType.minimal_amount) * 100
-                        : 0;
-                    return (
-                        // Using Paper's Card component for a styled progress block for each task.
-                        <Card key={taskType.task_type_id} style={styles.progressContainer}>
-                            <Card.Content>
-                                <Text style={styles.label}>
-                                    {taskType.name}: {loggedAmount} / {taskType.minimal_amount}
-                                </Text>
-                                {/* React Native Paper's ProgressBar expects a value between 0 and 1 */}
-                                <ProgressBar progress={progressPercent / 100} />
-                            </Card.Content>
-                        </Card>
-                    );
-                })}
+                taskTypes
+                    .filter(
+                        (taskType) =>
+                            taskType.name.toLowerCase() !== 'gross revenue' &&
+                            taskType.name.toLowerCase() !== 'gross_revenue'
+                    )
+                    .map((taskType) => {
+                        const loggedAmount = getLoggedAmountForTask(taskType.name);
+                        return (
+                            <TouchableOpacity
+                                key={taskType.task_type_id}
+                                onPress={() => handleProgressPress(taskType)}
+                            >
+                                <Card style={styles.progressContainer}>
+                                    <Card.Content>
+                                        <Text style={styles.label}>
+                                            {formatTaskName(taskType.name)}: {loggedAmount} / {taskType.optimal_amount}
+                                        </Text>
+                                        <TaskProgressBar
+                                            loggedAmount={loggedAmount}
+                                            minimalAmount={taskType.minimal_amount}
+                                            optimalAmount={taskType.optimal_amount}
+                                        />
+                                    </Card.Content>
+                                </Card>
+                            </TouchableOpacity>
+                        );
+                    })}
+
             <View style={styles.navigation}>
-                {/* Converted React Native Buttons to Paper Buttons with mode="contained" */}
                 <Button
                     mode="contained"
                     onPress={() => setCurrentWeekIndex((prev) => Math.max(prev - 1, 0))}
@@ -122,26 +234,124 @@ const HomeScreen = () => {
                     Next Week
                 </Button>
             </View>
+
+            <Portal>
+                <Dialog
+                    visible={modalVisible}
+                    onDismiss={() => setModalVisible(false)}
+                    style={styles.dialog}
+                    theme={customComponentTheme}
+                >
+                    <Dialog.Title>
+                        {currentWeek && selectedTaskType
+                            ? `Week ${currentWeekIndex + 1} ${formatTaskName(selectedTaskType.name)}s Logs`
+                            : 'Logs'}
+                    </Dialog.Title>
+                    <Dialog.Content>
+                        <View style={styles.aggregateContainer}>
+                            <IconButton
+                                icon="minus"
+                                onPress={() => setNewWeeklyTotal((prev) => (prev > 0 ? prev - 1 : 0))}
+                                style={styles.iconButton}
+                            />
+                            <Text style={styles.aggregateDisplay}>{newWeeklyTotal}</Text>
+                            <IconButton
+                                icon="plus"
+                                onPress={() => setNewWeeklyTotal((prev) => prev + 1)}
+                                style={styles.iconButton}
+                            />
+                        </View>
+                    </Dialog.Content>
+                    <Dialog.Actions style={styles.dialogActions}>
+                        <Button onPress={handleSaveAll}>Save</Button>
+                        <Button onPress={() => setModalVisible(false)}>Cancel</Button>
+                    </Dialog.Actions>
+                </Dialog>
+            </Portal>
+
+            <Snackbar
+                visible={snackbarVisible}
+                onDismiss={() => setSnackbarVisible(false)}
+                duration={3000}
+            >
+                {snackbarMessage}
+            </Snackbar>
         </Surface>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: 16 },
-    progressContainer: { marginVertical: 8 },
-    label: { fontSize: 16, marginBottom: 4 },
-    weekLabel: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
-    navigation: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 },
-    navButton: { flex: 1, marginHorizontal: 4 }
+    container: {
+        flex: 1,
+        paddingHorizontal: scale(16),
+        paddingBottom: scale(16),
+        justifyContent: 'space-between',
+    },
+    headerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        height: '7%',
+        paddingTop: scale(0),
+        marginTop: scale(16)
+    },
+    weekLabel: {
+        fontSize: scale(22),
+        fontWeight: 'bold',
+        height: 'auto',
+        minHeight: scale(0),
+    },
+    progressContainer: {
+        marginVertical: scale(8),
+        backgroundColor: '#f6f6f6',
+    },
+    label: {
+        fontSize: scale(16),
+        marginBottom: scale(4),
+    },
+    navigation: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: scale(20),
+    },
+    navButton: {
+        flex: 1,
+        marginHorizontal: scale(4),
+    },
+    progressBarContainer: {
+        position: 'relative',
+        width: '100%',
+        backgroundColor: '#fff',
+    },
+    progressBar: {
+        height: scale(10),
+        borderRadius: scale(2),
+    },
+    thresholdLine: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        width: scale(2),
+        backgroundColor: 'red',
+    },
+    dialog: { borderRadius: 30 },
+    aggregateContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginVertical: scale(16),
+    },
+    aggregateDisplay: {
+        fontSize: scale(18),
+        paddingHorizontal: scale(16),
+    },
+    iconButton: {
+        backgroundColor: '#f6f6f6',
+    },
+    dialogActions: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+    },
 });
-
-// Note: In your app's entry point, wrap your root component with PaperProvider for consistent theming.
-// Example:
-// const App = () => (
-//   <PaperProvider>
-//     <HomeScreen />
-//   </PaperProvider>
-// );
-// export default App;
 
 export default HomeScreen;

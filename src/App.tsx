@@ -7,7 +7,8 @@ import AppNavigator from '../src/navigation/AppNavigator';
 import AuthNavigator from '../src/navigation/AuthNavigator';
 import Toast from 'react-native-toast-message';
 import { useFonts } from 'expo-font';
-import { Provider as PaperProvider} from 'react-native-paper';
+import { Provider as PaperProvider } from 'react-native-paper';
+import theme from './theme'
 
 const RootNavigation = () => {
     const { user, loading: authLoading } = useAuth();
@@ -29,7 +30,7 @@ const App = () => {
 
     // 3) Once fonts are loaded, render normal app content
     return (
-        <PaperProvider>
+        <PaperProvider theme={theme}>
             <AuthProvider>
                 <NavigationContainer>
                     <RootNavigation />
