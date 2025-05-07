@@ -4,6 +4,7 @@ import { TextInput, Button, Surface, Text, Snackbar } from 'react-native-paper';
 import { supabase } from '../lib/supabase';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { AuthStackParamList } from '../navigation/AuthNavigator';
+import { useAuth } from '../contexts/AuthContext';
 
 type LoginScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
 
@@ -11,61 +12,41 @@ interface LoginScreenProps {
     navigation: LoginScreenNavigationProp;
 }
 
-// Define a scaling function relative to a base width (e.g., 375)
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const guidelineBaseWidth = 375;
 const scale = (size: number) => (SCREEN_WIDTH / guidelineBaseWidth) * size;
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = () => {
     const [email, setEmail] = useState<string>('');
     const [password, setPassword] = useState<string>('');
     const [snackbarVisible, setSnackbarVisible] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
+    const { refreshProfile } = useAuth();
 
     const handleSignIn = async () => {
         try {
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            });
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
 
             if (error) {
                 setSnackbarMessage(error.message);
                 setSnackbarVisible(true);
+                return;
+            }
+
+            // Force fresh session and profile
+            const {
+                data: { session: newSession },
+            } = await supabase.auth.getSession();
+
+            if (newSession?.user) {
+                console.log("Login successful, refreshing profile...");
+                await refreshProfile();
             } else {
-                await ensureProfileExists();
+                console.warn("Session missing after login");
             }
         } catch (err: any) {
-            setSnackbarMessage(err.message);
+            setSnackbarMessage(err.message || 'Unexpected error');
             setSnackbarVisible(true);
-        }
-    };
-
-    const ensureProfileExists = async () => {
-        const {
-            data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session || !session.user) {
-            console.error('No user session found.');
-            return;
-        }
-
-        const user = session.user;
-
-        const { data: profile, error: fetchError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-
-        if (fetchError || !profile) {
-            const { error: insertError } = await supabase.from('profiles').insert({
-                id: user.id,
-            });
-            if (insertError) {
-                console.error('Error creating profile:', insertError.message);
-            }
         }
     };
 
