@@ -41,14 +41,13 @@ interface TaskType {
 
 type TaskKey = Exclude<keyof WeeklyData, 'week_start'>;
 
-const formatTaskName = (name: string): string => {
-    return name
+const formatTaskName = (name: string): string =>
+    name
         .split('_')
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .map(w => w[0].toUpperCase() + w.slice(1))
         .join(' ');
-};
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const guidelineBaseWidth = 375;
 const scale = (size: number) => (SCREEN_WIDTH / guidelineBaseWidth) * size;
 
@@ -68,7 +67,7 @@ const TaskProgressBar = ({
     return (
         <View
             style={styles.progressBarContainer}
-            onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
+            onLayout={e => setBarWidth(e.nativeEvent.layout.width)}
         >
             <ProgressBar progress={progress} style={styles.progressBar} />
             {optimalAmount !== minimalAmount && (
@@ -89,6 +88,12 @@ const HomeScreen = () => {
     const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
     const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
 
+    // NEW: pipeline summary state
+    const [pipelineSummary, setPipelineSummary] = useState<{
+        count: number;
+        totalRevenue: number;
+    }>({ count: 0, totalRevenue: 0 });
+
     // Modal
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedTaskType, setSelectedTaskType] = useState<TaskType | null>(null);
@@ -98,15 +103,30 @@ const HomeScreen = () => {
     const [snackbarVisible, setSnackbarVisible] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
 
-    // Remove custom tooltip state (now using PopoverTooltip component)
-
     const fetchWeeklyData = async () => {
         if (!user) return;
-        const courseStart = '2025-03-12';
+
+        // Step 1: Get the most recent course start date
+        const { data: course, error: courseError } = await supabase
+            .from('courses')
+            .select('start_date')
+            .order('start_date', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (courseError || !course) {
+            console.error('Error fetching course start date:', courseError?.message);
+            return;
+        }
+
+        const courseStart = course.start_date;
+
+        // Step 2: Use that start date in your RPC call
         const { data, error } = await supabase.rpc('get_weekly_task_counts', {
             course_start: courseStart,
             uid: user.id,
         });
+
         if (error) {
             console.error('Error fetching weekly task counts:', error);
         } else {
@@ -114,19 +134,37 @@ const HomeScreen = () => {
         }
     };
 
+
     useFocusEffect(
         useCallback(() => {
             if (!user) return;
+
+            // 1) fetch tasks & weeks
             fetchWeeklyData();
             const fetchTaskTypes = async () => {
-                const { data, error } = await supabase.from('task_types').select('*');
-                if (error) {
-                    console.error('Error fetching task types:', error);
-                } else {
-                    setTaskTypes(data);
-                }
+                const { data, error } = await supabase
+                    .from('task_types')
+                    .select('*');
+                if (!error && data) setTaskTypes(data);
             };
             fetchTaskTypes();
+
+            // 2) NEW: fetch pipeline summary
+            const fetchPipelineSummary = async () => {
+                const { data, error } = await supabase.rpc(
+                    'get_clients_by_client_type',
+                    { uid: user.id, client_type_name: 'Pipeline' }
+                );
+                if (!error && data) {
+                    const count = data.length;
+                    const totalRevenue = data.reduce(
+                        (sum: number, c: any) => sum + (c.pipeline_revenue || 0),
+                        0
+                    );
+                    setPipelineSummary({ count, totalRevenue });
+                }
+            };
+            fetchPipelineSummary();
         }, [user])
     );
 
@@ -134,17 +172,16 @@ const HomeScreen = () => {
 
     const getLoggedAmountForTask = (taskName: string): number => {
         if (!currentWeek) return 0;
-        const singularKey = taskName.toLowerCase().replace(/[\s-]+/g, '_');
-        const key = singularKey.endsWith('s') ? singularKey : singularKey + 's';
-        const value = currentWeek[key as TaskKey];
-        return typeof value === 'number' ? value : 0;
+        const keyBase = taskName.toLowerCase().replace(/[\s-]+/g, '_');
+        const key = keyBase.endsWith('s') ? keyBase : keyBase + 's';
+        const val = (currentWeek as any)[key as TaskKey];
+        return typeof val === 'number' ? val : 0;
     };
 
     const handleProgressPress = (taskType: TaskType) => {
         if (!currentWeek) return;
         setSelectedTaskType(taskType);
-        const currentTotal = getLoggedAmountForTask(taskType.name);
-        setNewWeeklyTotal(currentTotal);
+        setNewWeeklyTotal(getLoggedAmountForTask(taskType.name));
         setModalVisible(true);
     };
 
@@ -156,11 +193,7 @@ const HomeScreen = () => {
             _week_start: currentWeek.week_start,
             _new_total: newWeeklyTotal,
         });
-        if (error) {
-            setSnackbarMessage('Error updating logs');
-        } else {
-            setSnackbarMessage('Weekly total updated successfully');
-        }
+        setSnackbarMessage(error ? 'Error updating logs' : 'Weekly total updated successfully');
         setSnackbarVisible(true);
         await fetchWeeklyData();
         setModalVisible(false);
@@ -172,41 +205,40 @@ const HomeScreen = () => {
         <Surface style={styles.container}>
             <PopoverTooltip
                 tooltipText={
-                    "Welcome to your Home Screen! Here you can:\n\u2022 track weekly tasks\n\u2022 adjust the quantities if needed\n\u2022 navigate between weeks.\n\nThe red lines on some progression bars represent the minimal weekly amounts you should aim for!"
+                    "Welcome to your Home Screen! Here you can:\n" +
+                    "\u2022 track weekly tasks\n" +
+                    "\u2022 adjust the quantities if needed\n" +
+                    "\u2022 navigate between weeks.\n\n" +
+                    "The red lines on some progression bars represent the minimal weekly amounts you should aim for!"
                 }
             />
+
             <View style={styles.headerRow}>
                 <Text variant="headlineSmall" style={styles.weekLabel}>
                     Week {currentWeekIndex + 1}
                 </Text>
-                {/* Use standardized PopoverTooltip for the tooltip icon */}
-                
             </View>
 
-            {/* Render each task */}
+            {/* Tasks */}
             {currentWeek &&
                 taskTypes
-                    .filter(
-                        (taskType) =>
-                            taskType.name.toLowerCase() !== 'gross revenue' &&
-                            taskType.name.toLowerCase() !== 'gross_revenue'
-                    )
-                    .map((taskType) => {
-                        const loggedAmount = getLoggedAmountForTask(taskType.name);
+                    .filter(tt => !['gross revenue', 'gross_revenue'].includes(tt.name.toLowerCase()))
+                    .map(tt => {
+                        const logged = getLoggedAmountForTask(tt.name);
                         return (
                             <TouchableOpacity
-                                key={taskType.task_type_id}
-                                onPress={() => handleProgressPress(taskType)}
+                                key={tt.task_type_id}
+                                onPress={() => handleProgressPress(tt)}
                             >
                                 <Card style={styles.progressContainer}>
                                     <Card.Content>
                                         <Text style={styles.label}>
-                                            {formatTaskName(taskType.name)}: {loggedAmount} / {taskType.optimal_amount}
+                                            {formatTaskName(tt.name)}: {logged} / {tt.optimal_amount}
                                         </Text>
                                         <TaskProgressBar
-                                            loggedAmount={loggedAmount}
-                                            minimalAmount={taskType.minimal_amount}
-                                            optimalAmount={taskType.optimal_amount}
+                                            loggedAmount={logged}
+                                            minimalAmount={tt.minimal_amount}
+                                            optimalAmount={tt.optimal_amount}
                                         />
                                     </Card.Content>
                                 </Card>
@@ -214,10 +246,36 @@ const HomeScreen = () => {
                         );
                     })}
 
+            {/* NEW: elevated Surface */}
+            {/* Two separate summary boxes side-by-side */}
+            <View style={styles.summaryRow}>
+                <Surface style={styles.summaryBox}>
+                    <Text style={styles.summaryLabel}>15/30 Pipeline</Text>
+                    <Text style={styles.summaryValue}>
+                        {pipelineSummary.count}
+                    </Text>
+                </Surface>
+
+                <Surface style={styles.summaryBox}>
+                    <Text style={styles.summaryLabel}>15/30 Revenue</Text>
+                    <Text style={styles.summaryValue}>
+                        {new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: 'USD',
+                            minimumFractionDigits: 2,
+                        }).format(pipelineSummary.totalRevenue)}
+                    </Text>
+                </Surface>
+
+            </View>
+
+
+
+            {/* Prev/Next */}
             <View style={styles.navigation}>
                 <Button
                     mode="contained"
-                    onPress={() => setCurrentWeekIndex((prev) => Math.max(prev - 1, 0))}
+                    onPress={() => setCurrentWeekIndex(i => Math.max(i - 1, 0))}
                     disabled={currentWeekIndex === 0}
                     style={styles.navButton}
                 >
@@ -226,15 +284,21 @@ const HomeScreen = () => {
                 <Button
                     mode="contained"
                     onPress={() =>
-                        setCurrentWeekIndex((prev) => Math.min(prev + 1, weeklyData.length - 1))
+                        setCurrentWeekIndex(i =>
+                            Math.min(i + 1, weeklyData.length - 1)
+                        )
                     }
-                    disabled={weeklyData.length === 0 || currentWeekIndex === weeklyData.length - 1}
+                    disabled={
+                        weeklyData.length === 0 ||
+                        currentWeekIndex === weeklyData.length - 1
+                    }
                     style={styles.navButton}
                 >
                     Next Week
                 </Button>
             </View>
 
+            {/* Edit Dialog */}
             <Portal>
                 <Dialog
                     visible={modalVisible}
@@ -244,27 +308,35 @@ const HomeScreen = () => {
                 >
                     <Dialog.Title>
                         {currentWeek && selectedTaskType
-                            ? `Week ${currentWeekIndex + 1} ${formatTaskName(selectedTaskType.name)}s Logs`
+                            ? `Week ${currentWeekIndex + 1} ${formatTaskName(
+                                selectedTaskType.name
+                            )}s Logs`
                             : 'Logs'}
                     </Dialog.Title>
                     <Dialog.Content>
                         <View style={styles.aggregateContainer}>
                             <IconButton
                                 icon="minus"
-                                onPress={() => setNewWeeklyTotal((prev) => (prev > 0 ? prev - 1 : 0))}
+                                onPress={() =>
+                                    setNewWeeklyTotal(n => (n > 0 ? n - 1 : 0))
+                                }
                                 style={styles.iconButton}
                             />
-                            <Text style={styles.aggregateDisplay}>{newWeeklyTotal}</Text>
+                            <Text style={styles.aggregateDisplay}>
+                                {newWeeklyTotal}
+                            </Text>
                             <IconButton
                                 icon="plus"
-                                onPress={() => setNewWeeklyTotal((prev) => prev + 1)}
+                                onPress={() => setNewWeeklyTotal(n => n + 1)}
                                 style={styles.iconButton}
                             />
                         </View>
                     </Dialog.Content>
                     <Dialog.Actions style={styles.dialogActions}>
                         <Button onPress={handleSaveAll}>Save</Button>
-                        <Button onPress={() => setModalVisible(false)}>Cancel</Button>
+                        <Button onPress={() => setModalVisible(false)}>
+                            Cancel
+                        </Button>
                     </Dialog.Actions>
                 </Dialog>
             </Portal>
@@ -290,29 +362,77 @@ const styles = StyleSheet.create({
     headerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        height: '7%',
-        paddingTop: scale(0),
-        marginTop: scale(16)
+        justifyContent: 'center',
+        marginTop: scale(16),
     },
     weekLabel: {
         fontSize: scale(22),
         fontWeight: 'bold',
-        height: 'auto',
-        minHeight: scale(0),
     },
     progressContainer: {
-        marginVertical: scale(8),
+        marginVertical: scale(3),
         backgroundColor: '#f6f6f6',
     },
     label: {
         fontSize: scale(16),
         marginBottom: scale(4),
     },
+    // NEW styles for summary
+    summaryContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        
+    },
+    // gives white background + shadow like your cards
+    summarySurface: {
+        backgroundColor: '#f6f6f6',
+        elevation: 2,              // Android shadow
+        shadowColor: '#000',       // iOS shadow
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 1.5,
+        borderRadius: scale(60),
+        borderWidth: scale(1),
+        borderColor: '#888',
+        marginVertical: scale(12),
+        padding: scale(10),
+    },
+    summaryText: {
+        fontSize: scale(16),
+        fontWeight: '600',
+    },
+    summaryLabel: {
+        fontSize: scale(14),    // a bit smaller than your value
+        color: '#666',          // muted gray
+    },
+    summaryValue: {
+        fontSize: scale(18),    // larger, to pop
+        fontWeight: '700',      // bold
+        marginTop: scale(4),    // small gap under the label
+    },
+
+    summaryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginVertical: scale(12),
+    },
+    summaryBox: {
+        flex: 1,
+        backgroundColor: '#fff',
+        elevation: 2,               // Android
+        shadowColor: '#000',        // iOS
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 1.5,
+        borderRadius: scale(60),
+        padding: scale(10),
+        marginHorizontal: scale(4),
+        alignItems: 'center',
+    },
+
     navigation: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginTop: scale(20),
     },
     navButton: {
         flex: 1,
@@ -324,7 +444,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
     },
     progressBar: {
-        height: scale(10),
+        height: scale(6),     // reduced from 10 to 6
         borderRadius: scale(2),
     },
     thresholdLine: {
@@ -353,5 +473,4 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
 });
-
 export default HomeScreen;

@@ -40,19 +40,22 @@ const EditPipelineClientModal = ({
         last_name: string;
         temperature: string;
         pipeline_note: string;
+        pipeline_revenue: number;
     }) => void;
 }) => {
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [temperature, setTemperature] = useState('lukewarm');
     const [pipelineNote, setPipelineNote] = useState('');
+    const [pipelineRevenue, setPipelineRevenue] = useState('');
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (client) {
             setFirstName(client.first_name);
             setLastName(client.last_name || '');
             setTemperature(client.temperature || 'lukewarm');
             setPipelineNote(client.pipeline_note || '');
+            setPipelineRevenue(client.pipeline_revenue?.toString() || '0');
         }
     }, [client]);
 
@@ -62,6 +65,7 @@ const EditPipelineClientModal = ({
             last_name: lastName,
             temperature,
             pipeline_note: pipelineNote,
+            pipeline_revenue: parseInt(pipelineRevenue, 10) || 0,
         });
     };
 
@@ -71,8 +75,9 @@ const EditPipelineClientModal = ({
             onDismiss={onDismiss}
             contentContainerStyle={modalStyles.modalContent}
         >
-            <ScrollView>
+            <ScrollView contentContainerStyle={{ paddingRight: scale(16) }}>
                 <PaperText style={modalStyles.modalHeader}>Edit Pipeline Client</PaperText>
+
                 <PaperText style={modalStyles.label}>First Name</PaperText>
                 <PaperTextInput
                     mode="outlined"
@@ -80,6 +85,7 @@ const EditPipelineClientModal = ({
                     value={firstName}
                     onChangeText={setFirstName}
                 />
+
                 <PaperText style={modalStyles.label}>Last Name</PaperText>
                 <PaperTextInput
                     mode="outlined"
@@ -87,6 +93,7 @@ const EditPipelineClientModal = ({
                     value={lastName}
                     onChangeText={setLastName}
                 />
+
                 <PaperText style={modalStyles.label}>Temperature</PaperText>
                 <Surface style={modalStyles.pickerContainer}>
                     <Picker
@@ -100,13 +107,28 @@ const EditPipelineClientModal = ({
                         <Picker.Item label="Hot" value="hot" />
                     </Picker>
                 </Surface>
+
                 <PaperText style={modalStyles.label}>Pipeline Note</PaperText>
                 <PaperTextInput
                     mode="outlined"
-                    style={modalStyles.input}
+                    style={[modalStyles.input, { height: scale(120)}]}
+                    multiline
+                    theme={{ roundness: scale(24) }}
+                    numberOfLines={5}
                     value={pipelineNote}
                     onChangeText={setPipelineNote}
                 />
+
+                <PaperText style={modalStyles.label}>Pipeline Revenue</PaperText>
+                <PaperTextInput
+                    mode="outlined"
+                    style={modalStyles.input}
+                    value={pipelineRevenue}
+                    onChangeText={setPipelineRevenue}
+                    keyboardType="numeric"
+                    left={<PaperTextInput.Affix text="$" />}
+                />
+
                 <PaperButton
                     mode="contained"
                     onPress={handleSave}
@@ -126,6 +148,7 @@ const EditPipelineClientModal = ({
     );
 };
 
+
 // ---------- Main PipelineScreen Component ----------
 const PipelineScreen = () => {
     const { user } = useAuth();
@@ -133,29 +156,28 @@ const PipelineScreen = () => {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
-    // ---------- Modal Visibility States ----------
+    // Modal states
     const [editModalVisible, setEditModalVisible] = useState<boolean>(false);
     const [prospectModalVisible, setProspectModalVisible] = useState<boolean>(false);
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
-    // ---------- State for listing Prospects ----------
+    // Prospects list
     const [prospects, setProspects] = useState<Client[]>([]);
     const [pipelineTypeId, setPipelineTypeId] = useState<number | null>(null);
 
-    // For "Remove from Pipeline" confirmation
+    // Remove confirmation
     const [removeModalVisible, setRemoveModalVisible] = useState<boolean>(false);
     const [clientToRemove, setClientToRemove] = useState<Client | null>(null);
 
-    // Snackbar state
+    // Snackbar
     const [snackbarVisible, setSnackbarVisible] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
-
     const showSnack = (message: string) => {
         setSnackbarMessage(message);
         setSnackbarVisible(true);
     };
 
-    // ---------- Fetch Pipeline Clients ----------
+    // Fetch pipeline clients
     React.useEffect(() => {
         const fetchPipelineClients = async () => {
             if (!user) {
@@ -175,16 +197,13 @@ const PipelineScreen = () => {
             }
             setLoading(false);
         };
-
         fetchPipelineClients();
     }, [user]);
 
-    // ---------- Fetch Prospects ----------
+    // Fetch prospects
     const fetchProspects = async () => {
         if (!user) return;
-        const { data, error } = await supabase.rpc('get_prospects_not_in_pipeline', {
-            uid: user.id,
-        });
+        const { data, error } = await supabase.rpc('get_prospects_not_in_pipeline', { uid: user.id });
         if (error) {
             showSnack(`Error fetching prospects: ${error.message}`);
         } else if (data) {
@@ -192,7 +211,7 @@ const PipelineScreen = () => {
         }
     };
 
-    // ---------- Fetch Pipeline Type ID ----------
+    // Fetch pipeline type ID
     React.useEffect(() => {
         const fetchPipelineTypeId = async () => {
             const { data, error } = await supabase
@@ -200,16 +219,12 @@ const PipelineScreen = () => {
                 .select('id')
                 .eq('name', 'Pipeline')
                 .single();
-            if (error) {
-                console.error('Error fetching pipeline type id:', error);
-            } else if (data) {
-                setPipelineTypeId(data.id);
-            }
+            if (!error && data) setPipelineTypeId(data.id);
         };
         fetchPipelineTypeId();
     }, []);
 
-    // ---------- Refresh Pipeline Clients ----------
+    // Refresh pipeline clients
     const refreshPipelineClients = async () => {
         if (!user) return;
         setLoading(true);
@@ -217,42 +232,32 @@ const PipelineScreen = () => {
             uid: user.id,
             client_type_name: 'Pipeline',
         });
-        if (!error && data) {
-            setPipelineClients(data);
-        }
+        if (!error && data) setPipelineClients(data);
         setLoading(false);
     };
 
     const getBackgroundColor = (temperature: string) => {
         switch (temperature) {
-            case 'lukewarm':
-                return '#FFFACD'; // LemonChiffon
-            case 'warm':
-                return '#FFDAB9'; // PeachPuff
-            case 'hot':
-                return '#FFA07A'; // LightSalmon
-            default:
-                return '#F0F0F0';
+            case 'lukewarm': return '#FFFACD';
+            case 'warm': return '#FFDAB9';
+            case 'hot': return '#FFA07A';
+            default: return '#F0F0F0';
         }
     };
 
     const renderPipelineItem = ({ item }: { item: Client }) => (
-        <Surface
-            style={[
-                styles.itemContainer,
-                { backgroundColor: getBackgroundColor(item.temperature) },
-            ]}
-        >
+        <Surface style={[styles.itemContainer, { backgroundColor: getBackgroundColor(item.temperature) }]}>
             <TouchableRipple onPress={() => handleEditPress(item)}>
                 <View>
                     <PaperText style={styles.name}>
                         {item.first_name} {item.last_name || ''}
                     </PaperText>
                     <PaperText style={styles.temperature}>Temperature: {item.temperature}</PaperText>
+                    <PaperText style={styles.note}>
+                        Pipeline Revenue: {`$${item.pipeline_revenue}`}
+                    </PaperText>
                     {item.pipeline_note && (
-                        <PaperText style={styles.note}>
-                            Pipeline Note: {item.pipeline_note}
-                        </PaperText>
+                        <PaperText style={styles.note}>Pipeline Note: {item.pipeline_note}</PaperText>
                     )}
                     <PaperText style={styles.createdAt}>
                         Logged At: {new Date(item.created_at).toLocaleString()}
@@ -278,6 +283,7 @@ const PipelineScreen = () => {
         last_name: string;
         temperature: string;
         pipeline_note: string;
+        pipeline_revenue: number;
     }) => {
         if (!user || !selectedClient) {
             showSnack('No user or client selected');
@@ -302,23 +308,13 @@ const PipelineScreen = () => {
     };
 
     const handleAddToPipeline = async (clientId: string) => {
-        if (!pipelineTypeId) {
-            showSnack('Pipeline type not found');
-            return;
-        }
-        const { error } = await supabase.from('client_client_types').insert([
-            {
-                client_id: clientId,
-                client_type_id: pipelineTypeId,
-            },
-        ]);
-        if (error) {
-            showSnack(`Error adding to pipeline: ${error.message}`);
-        } else {
-            showSnack('Added to pipeline');
-            refreshPipelineClients();
-            setProspectModalVisible(false);
-        }
+        if (!pipelineTypeId) { showSnack('Pipeline type not found'); return; }
+        const { error } = await supabase.from('client_client_types').insert([{
+            client_id: clientId,
+            client_type_id: pipelineTypeId,
+        }]);
+        if (error) showSnack(`Error adding to pipeline: ${error.message}`);
+        else { showSnack('Added to pipeline'); refreshPipelineClients(); setProspectModalVisible(false); }
     };
 
     const renderProspectItem = ({ item }: { item: Client }) => (
@@ -330,102 +326,45 @@ const PipelineScreen = () => {
         </Surface>
     );
 
-    const confirmRemove = (client: Client) => {
-        setClientToRemove(client);
-        setRemoveModalVisible(true);
-    };
-
+    const confirmRemove = (client: Client) => { setClientToRemove(client); setRemoveModalVisible(true); };
     const handleRemoveConfirm = async () => {
         if (!clientToRemove) return;
-        try {
-            const pipelineType = pipelineTypeId ?? 3;
-            const { error } = await supabase
-                .from('client_client_types')
-                .delete()
-                .eq('client_id', clientToRemove.client_id)
-                .eq('client_type_id', pipelineType);
-            if (error) {
-                showSnack(`Error removing from pipeline: ${error.message}`);
-            } else {
-                showSnack('Removed from pipeline');
-                refreshPipelineClients();
-            }
-        } catch (err: any) {
-            showSnack(`Error removing from pipeline: ${err.message}`);
-        }
+        const { error } = await supabase
+            .from('client_client_types')
+            .delete()
+            .eq('client_id', clientToRemove.client_id)
+            .eq('client_type_id', pipelineTypeId ?? 3);
+        if (error) showSnack(`Error removing from pipeline: ${error.message}`);
+        else { showSnack('Removed from pipeline'); refreshPipelineClients(); }
         setRemoveModalVisible(false);
         setClientToRemove(null);
     };
+    const handleRemoveCancel = () => { setRemoveModalVisible(false); setClientToRemove(null); };
 
-    const handleRemoveCancel = () => {
-        setRemoveModalVisible(false);
-        setClientToRemove(null);
-    };
-
-    if (loading) {
-        return (
-            <Surface style={styles.center}>
-                <ActivityIndicator animating={true} size="large" />
-            </Surface>
-        );
-    }
-    if (error) {
-        return (
-            <Surface style={styles.center}>
-                <PaperText>Error: {error}</PaperText>
-            </Surface>
-        );
-    }
+    if (loading) return <Surface style={styles.center}><ActivityIndicator animating size="large" /></Surface>;
+    if (error) return <Surface style={styles.center}><PaperText>Error: {error}</PaperText></Surface>;
 
     return (
         <Surface style={styles.container}>
-            {/* Render standardized PopoverTooltip at the top-right */}
-            <PopoverTooltip
-                tooltipText={
-                    "Welcome to your Pipeline Contacts screen! Here you can manage your pipeline contacts and add prospects to the pipeline."
-                }
-            />
+            <PopoverTooltip tooltipText="Welcome to your Pipeline Contacts screen! Here you can manage your pipeline contacts and add prospects to the pipeline." />
             <PaperText style={styles.header}>Pipeline Contacts</PaperText>
             <FlatList
                 data={pipelineClients}
-                keyExtractor={(item) => item.client_id}
+                keyExtractor={item => item.client_id}
                 renderItem={renderPipelineItem}
                 contentContainerStyle={styles.listContent}
             />
-            <PaperButton
-                mode="contained"
-                onPress={() => {
-                    setProspectModalVisible(true);
-                    fetchProspects();
-                }}
-                style={styles.addButton}
-            >
+            <PaperButton mode="contained" onPress={() => { setProspectModalVisible(true); fetchProspects(); }} style={styles.addButton}>
                 Add Prospect to Pipeline
             </PaperButton>
 
             <Portal>
                 {/* Prospect Modal */}
-                <PaperModal
-                    visible={prospectModalVisible}
-                    onDismiss={() => setProspectModalVisible(false)}
-                    contentContainerStyle={styles.modalContent}
-                >
+                <PaperModal visible={prospectModalVisible} onDismiss={() => setProspectModalVisible(false)} contentContainerStyle={styles.modalContent}>
                     <PaperText style={styles.modalHeader}>Select a Prospect</PaperText>
-                    <FlatList
-                        data={prospects}
-                        keyExtractor={(item) => item.client_id}
-                        renderItem={renderProspectItem}
-                        contentContainerStyle={styles.listContent}
-                    />
-                    <PaperButton
-                        mode="contained"
-                        onPress={() => setProspectModalVisible(false)}
-                        style={styles.closeButton}
-                    >
-                        Close
-                    </PaperButton>
+                    <FlatList data={prospects} keyExtractor={item => item.client_id} renderItem={renderProspectItem} contentContainerStyle={styles.listContent} />
+                    <PaperButton mode="contained" onPress={() => setProspectModalVisible(false)} style={styles.closeButton}>Close</PaperButton>
                 </PaperModal>
-
                 {/* Edit Client Modal */}
                 <EditPipelineClientModal
                     visible={editModalVisible}
@@ -433,46 +372,17 @@ const PipelineScreen = () => {
                     client={selectedClient}
                     onSave={handleUpdateClient}
                 />
-
-                {/* Remove Confirmation Modal */}
-                <PaperModal
-                    visible={removeModalVisible}
-                    onDismiss={handleRemoveCancel}
-                    contentContainerStyle={styles.modalContent}
-                >
+                {/* Remove Confirmation */}
+                <PaperModal visible={removeModalVisible} onDismiss={handleRemoveCancel} contentContainerStyle={styles.modalContent}>
                     <Surface style={styles.removeModalInner}>
-                        <PaperText style={styles.modalHeader}>
-                            Remove this client from the pipeline?
-                        </PaperText>
-                        <PaperButton
-                            mode="contained"
-                            onPress={handleRemoveConfirm}
-                            style={styles.modalButton}
-                        >
-                            Yes
-                        </PaperButton>
-                        <PaperButton
-                            mode="contained"
-                            onPress={handleRemoveCancel}
-                            style={styles.modalButton}
-                        >
-                            No
-                        </PaperButton>
+                        <PaperText style={styles.modalHeader}>Remove this client from the pipeline?</PaperText>
+                        <PaperButton mode="contained" onPress={handleRemoveConfirm} style={styles.modalButton}>Yes</PaperButton>
+                        <PaperButton mode="contained" onPress={handleRemoveCancel} style={styles.modalButton}>No</PaperButton>
                     </Surface>
                 </PaperModal>
             </Portal>
 
-            <Snackbar
-                visible={snackbarVisible}
-                onDismiss={() => setSnackbarVisible(false)}
-                duration={3000}
-                action={{
-                    label: 'OK',
-                    onPress: () => setSnackbarVisible(false),
-                }}
-            >
-                {snackbarMessage}
-            </Snackbar>
+            <Snackbar visible={snackbarVisible} onDismiss={() => setSnackbarVisible(false)} duration={3000} action={{ label: 'OK', onPress: () => setSnackbarVisible(false) }}>{snackbarMessage}</Snackbar>
         </Surface>
     );
 };
@@ -482,105 +392,34 @@ const styles = StyleSheet.create({
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     header: { fontSize: scale(24), fontWeight: 'bold', marginBottom: scale(16), textAlign: 'center' },
     listContent: { paddingBottom: scale(16) },
-    itemContainer: {
-        position: 'relative',
-        borderWidth: scale(1),
-        borderColor: '#ccc',
-        borderRadius: scale(16),
-        padding: scale(12),
-        marginBottom: scale(12),
-    },
-    prospects: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: scale(3),
-        borderColor: '#505050',
-        borderWidth: scale(1),
-        marginTop: scale(16),
-        borderRadius: scale(60),
-        backgroundColor: '#f6f6f6',
-    },
-    headerLeftPlaceholder: { width: 44 },
+    itemContainer: { position: 'relative', borderWidth: scale(1), borderColor: '#ccc', borderRadius: scale(16), padding: scale(12), marginBottom: scale(12) },
+    prospects: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: scale(3), borderColor: '#505050', borderWidth: scale(1), marginTop: scale(16), borderRadius: scale(60), backgroundColor: '#f6f6f6' },
     name: { fontSize: scale(18), fontWeight: '600' },
     nameProspect: { fontSize: scale(18), fontWeight: '600', marginLeft: scale(10) },
-    temperature: { fontSize: scale(16), marginBottom: scale(4) },
+    temperature: { fontSize: scale(14), color: '#555' },
     note: { fontSize: scale(14), color: '#555' },
     createdAt: { fontSize: scale(12), color: '#555', marginTop: scale(4) },
-    deleteIcon: {
-        position: 'absolute',
-        bottom: scale(8),
-        right: scale(8),
-    },
-    addButton: {
-        marginTop: scale(16),
-        width: '70%',
-        alignContent: 'center',
-        alignSelf: 'center',
-    },
-    addButtonSmall: { marginTop: scale(4) },
+    deleteIcon: { position: 'absolute', bottom: scale(8), right: scale(8) },
+    addButton: { marginTop: scale(16), width: '70%', alignContent: 'center', alignSelf: 'center' },
     closeButton: { marginTop: scale(12) },
-    modalContent: {
-        backgroundColor: '#fff',
-        padding: scale(10),
-        margin: scale(10),
-        borderRadius: scale(20),
-        maxHeight: '80%',
-    },
-    modalHeader: {
-        fontSize: scale(20),
-        fontWeight: 'bold',
-        marginBottom: scale(12),
-        textAlign: 'center',
-    },
-    prospectItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: scale(8),
-        borderBottomWidth: scale(1),
-        borderBottomColor: '#ccc',
-    },
-    removeModalInner: {
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalButton: {
-        marginVertical: scale(6),
-        alignSelf: 'center',
-    },
-    FAB: {
-        marginHorizontal: scale(10),
-        marginVertical: scale(3),
-        color: '#f6f6f6',
-        backgroundColor: '#c93332',
-    },
+    modalContent: { backgroundColor: '#fff', padding: scale(10), margin: scale(10), borderRadius: scale(20), maxHeight: '80%' },
+    modalHeader: { fontSize: scale(20), fontWeight: 'bold', marginBottom: scale(12), textAlign: 'center' },
+    label: { fontWeight: '600', marginVertical: scale(4) },
+    input: { marginBottom: scale(12) },
+    pickerContainer: { borderWidth: scale(1), borderColor: '#6f6f6f', borderRadius: scale(30), overflow: 'hidden', marginBottom: scale(12) },
+    picker: { width: '100%', height: scale(50), backgroundColor: '#f6f6f6' },
+    modalButton: { marginVertical: scale(6), alignSelf: 'center' },
+    FAB: { marginHorizontal: scale(10), marginVertical: scale(3), color: '#f6f6f6', backgroundColor: '#c93332' },
+    removeModalInner: { justifyContent: 'center', alignItems: 'center' },
 });
 
 const modalStyles = StyleSheet.create({
-    modalContent: {
-        backgroundColor: '#fff',
-        padding: scale(20),
-        margin: scale(20),
-        maxHeight: '80%',
-        borderRadius: scale(30),
-    },
-    modalHeader: {
-        fontSize: scale(20),
-        fontWeight: 'bold',
-        marginBottom: scale(12),
-        textAlign: 'center',
-    },
+    modalContent: { backgroundColor: '#fff', padding: scale(20), margin: scale(20), maxHeight: '80%', borderRadius: scale(30) },
+    modalHeader: { fontSize: scale(20), fontWeight: 'bold', marginBottom: scale(12), textAlign: 'center' },
     label: { fontWeight: '600', marginVertical: scale(4) },
     input: { marginBottom: scale(12) },
-    pickerContainer: {
-        borderWidth: scale(1),
-        borderColor: '#6f6f6f',
-        borderRadius: scale(30),
-        overflow: 'hidden',
-        marginBottom: scale(12),
-    },
-    picker: { width: '100%', height: scale(50), backgroundColor: '#f6f6f6' },
+    pickerContainer: {borderWidth: scale(1), borderColor: '#6f6f6f', borderRadius: scale(30), overflow: 'hidden', marginBottom: scale(12) },
+    picker: { width: '100%', height: scale(60), backgroundColor: '#f6f6f6' },
     modalButton: { marginVertical: scale(6) },
 });
 

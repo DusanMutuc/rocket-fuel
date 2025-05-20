@@ -1,8 +1,28 @@
+// components/Legend.tsx
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import {
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    Dimensions,
+} from 'react-native';
+
+// Scaling helper (same as in your other screens)
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const guidelineBaseWidth = 375;
+const scale = (size: number) => (SCREEN_WIDTH / guidelineBaseWidth) * size;
 
 // Define the allowed keys for your chart metrics.
-export type ChartMetric = 'asks' | 'follow_ups' | 'action_promises' | 'open_houses' | 'handwritten_cards' | 'exercises' |'baseline' | 'gross_revenue';
+export type ChartMetric =
+    | 'asks'
+    | 'follow_ups'
+    | 'action_promises'
+    | 'open_houses'
+    | 'handwritten_cards'
+    | 'exercises'
+    | 'baseline'
+    | 'gross_revenue';
 
 interface LegendItem {
     key: ChartMetric;
@@ -28,7 +48,12 @@ const Legend: React.FC<LegendProps> = ({ items, onPress, selected }) => {
                     ]}
                     onPress={() => onPress(item.key)}
                 >
-                    <View style={[styles.colorBox, { backgroundColor: item.color }]} />
+                    <View
+                        style={[
+                            styles.colorBox,
+                            { backgroundColor: item.color },
+                        ]}
+                    />
                     <Text style={styles.label}>{item.label}</Text>
                 </TouchableOpacity>
             ))}
@@ -38,29 +63,29 @@ const Legend: React.FC<LegendProps> = ({ items, onPress, selected }) => {
 
 const styles = StyleSheet.create({
     legendContainer: {
-        flexDirection: 'row',    // Arrange items horizontally
-        flexWrap: 'wrap',        // Allow wrapping to new rows
+        flexDirection: 'row',
+        flexWrap: 'wrap',
         alignItems: 'flex-start',
     },
     legendItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        width: '50%',            // Each item takes half the width => two columns
-        marginBottom: 5,
-        padding: 4,
+        width: '50%',            // two columns
+        marginBottom: scale(5),
+        padding: scale(4),
     },
     selectedItem: {
         backgroundColor: '#e0e0e0',
-        borderRadius: 4,
+        borderRadius: scale(4),
     },
     colorBox: {
-        width: 14,
-        height: 14,
-        marginRight: 5,
-        borderRadius: 2,
+        width: scale(14),
+        height: scale(14),
+        marginRight: scale(5),
+        borderRadius: scale(2),
     },
     label: {
-        fontSize: 16,
+        fontSize: scale(15),
     },
 });
 

@@ -64,9 +64,10 @@ function MainTabs() {
                 },
                 tabBarLabelStyle: {
                     marginTop: 3,
-                    marginBottom: 0,
                     fontSize: 10,
-                    flex: 0,
+                    flexWrap: 'wrap',
+                    width: 60,           // tweak until it fits nicely
+                    textAlign: 'center', // center the wrapped text
                 },
             }}
         >
@@ -110,7 +111,7 @@ function MainTabs() {
                 }}
             />
             <Tab.Screen
-                name="15/30 Pipeline"
+                name="15/30"
                 component={PipelineScreen}
                 options={{
                     tabBarIcon: ({ color, size }) => (
@@ -123,7 +124,7 @@ function MainTabs() {
                 }}
             />
             <Tab.Screen
-                name="Contacts Page"
+                name="Contacts"
                 component={ProspectListScreen}
                 options={{
                     tabBarIcon: ({ color, size }) => (

@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Platform, Dimensions, TouchableOpacity } from 'react-native';
+import {
+    StyleSheet,
+    View,
+    Platform,
+    Dimensions,
+    KeyboardAvoidingView,
+    ScrollView,
+    Keyboard
+} from 'react-native';
 import {
     Text,
     TextInput,
@@ -9,15 +17,13 @@ import {
     IconButton,
     useTheme,
     Snackbar,
-    Portal,
 } from 'react-native-paper';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase } from '../lib/supabase';
-import PopoverTooltip from '../components/PopoverTooltip'; // <-- Import your standardized tooltip
-import { AuthInvalidTokenResponseError } from '@supabase/supabase-js';
-// Define a scaling function based on the device's screen width.
+import PopoverTooltip from '../components/PopoverTooltip';
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const guidelineBaseWidth = 375; // Base width to scale from (e.g., iPhone 8)
+const guidelineBaseWidth = 375;
 const scale = (size: number) => (SCREEN_WIDTH / guidelineBaseWidth) * size;
 
 interface TaskType {
@@ -29,31 +35,13 @@ interface WrapButtonProps {
     onPress: () => void;
     label: string;
     selected: boolean;
-    // Optionally allow style override if needed
     styleOverride?: any;
 }
 
-// --- WrapButton ---
-// This button is used to render each task type and later the Gross Revenue button.
 const WrapButton: React.FC<WrapButtonProps> = ({ onPress, label, selected, styleOverride }) => {
     const theme = useTheme();
     return (
-        <View
-            style={[
-                {
-                    borderRadius: scale(50),
-                    overflow: 'hidden',
-                    width: '48%',
-                    marginVertical: scale(5),
-                    elevation: 4,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.3,
-                    shadowRadius: 3,
-                },
-                styleOverride,
-            ]}
-        >
+        <View style={[styles.buttonOuterWrapper, styleOverride]}>
             <TouchableRipple
                 onPress={onPress}
                 rippleColor={theme.colors.backdrop}
@@ -72,6 +60,8 @@ const WrapButton: React.FC<WrapButtonProps> = ({ onPress, label, selected, style
                                 color: selected ? theme.colors.onPrimary : theme.colors.onSurface,
                             },
                         ]}
+                        numberOfLines={2}
+                        ellipsizeMode="tail"
                     >
                         {label}
                     </Text>
@@ -87,11 +77,10 @@ const TaskLogScreen = () => {
     const [amount, setAmount] = useState<number>(1);
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [showPicker, setShowPicker] = useState(false);
-    // New state variable for Gross Revenue mode
     const [grossRevenue, setGrossRevenue] = useState(false);
-    // Snackbar state
     const [snackbarVisible, setSnackbarVisible] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
+    const scrollViewRef = useRef<ScrollView>(null);
 
     useEffect(() => {
         const fetchTaskTypes = async () => {
@@ -106,6 +95,17 @@ const TaskLogScreen = () => {
             }
         };
         fetchTaskTypes();
+
+        const keyboardDidHideListener = Keyboard.addListener(
+            'keyboardDidHide',
+            () => {
+                scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+            }
+        );
+
+        return () => {
+            keyboardDidHideListener.remove();
+        };
     }, []);
 
     const formatTaskName = (name: string) => {
@@ -191,7 +191,6 @@ const TaskLogScreen = () => {
             setAmount(100);
         } else if (grossRevenue && amount >= 100) {
             setAmount(amount + 100);
-
         } else {
             showSnack('Maximum of 99 allowed');
         }
@@ -205,7 +204,7 @@ const TaskLogScreen = () => {
             setAmount(1);
         }
         else if (grossRevenue && amount > 100) {
-            setAmount(amount - 100)
+            setAmount(amount - 100);
         } else {
             showSnack('Minimum amount is 1');
         }
@@ -213,83 +212,108 @@ const TaskLogScreen = () => {
 
     return (
         <Surface style={styles.container}>
-            {/* Header row with three sections: left placeholder, centered title, and right tooltip */}
             <PopoverTooltip
                 tooltipText={
                     "Welcome to your Task Log Screen! Here you can log tasks by selecting a task type, adjusting the amount, and picking a date."
                 }
             />
-            <View style={styles.headerRow}>
-                <View style={styles.headerLeftPlaceholder} />
-                <Text style={styles.headerTitle}>Select Task Type:</Text>
-                <View style={styles.headerRightPlaceholder} />
-            </View>
 
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.keyboardAvoidingContainer}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? scale(60) : 0}
+            >
+                <ScrollView
+                    ref={scrollViewRef}
+                    contentContainerStyle={styles.scrollContainer}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <View style={styles.headerRow}>
+                        <View style={styles.headerLeftPlaceholder} />
+                        <Text style={styles.headerTitle}>Select Task Type:</Text>
+                        <View style={styles.headerRightPlaceholder} />
+                    </View>
 
-            {/* Main content */}
-            <View style={styles.content}>
-                <View style={styles.buttonContainer}>
-                    {taskTypes
-                        .filter(
-                            (tt) =>
-                                tt.name.toLowerCase() !== 'gross_revenue' &&
-                                tt.name.toLowerCase() !== 'gross revenue'
-                        )
-                        .map((tt) => (
+                    <View style={styles.content}>
+                        <View style={styles.buttonContainer}>
+                            {taskTypes
+                                .filter(
+                                    (tt) =>
+                                        tt.name.toLowerCase() !== 'gross_revenue' &&
+                                        tt.name.toLowerCase() !== 'gross revenue'
+                                )
+                                .map((tt) => (
+                                    <WrapButton
+                                        key={tt.task_type_id}
+                                        onPress={() => {
+                                            setTaskTypeId(tt.task_type_id);
+                                            setGrossRevenue(false);
+                                            setAmount(1);
+                                        }}
+                                        label={formatTaskName(tt.name)}
+                                        selected={!grossRevenue && taskTypeId === tt.task_type_id}
+                                    />
+                                ))}
+                        </View>
+
+                        <View style={styles.grossRevenueRow}>
                             <WrapButton
-                                key={tt.task_type_id}
                                 onPress={() => {
-                                    setTaskTypeId(tt.task_type_id);
-                                    setGrossRevenue(false);
-                                    setAmount(1);
+                                    setGrossRevenue(true);
+                                    setTaskTypeId(7);
                                 }}
-                                label={formatTaskName(tt.name)}
-                                selected={!grossRevenue && taskTypeId === tt.task_type_id}
+                                label="Gross Revenue"
+                                selected={grossRevenue}
                             />
-                        ))}
-                </View>
+                        </View>
 
-                <View style={styles.grossRevenueRow}>
-                    <WrapButton
-                        onPress={() => {
-                            setGrossRevenue(true);
-                            setTaskTypeId(7);
-                        }}
-                        label="Gross Revenue"
-                        selected={grossRevenue}
-                    />
-                </View>
+                        <Text style={styles.label}>Amount:</Text>
+                        <View style={styles.amountContainer}>
+                            <IconButton
+                                icon="minus"
+                                onPress={handleDecrease}
+                                style={styles.amountIncrementor}
+                                size={20}
+                            />
+                            <TextInput
+                                mode="outlined"
+                                style={styles.amountInput}
+                                theme={{ roundness: scale(3) }}
+                                value={amount.toString()}
+                                onChangeText={handleAmountChange}
+                                keyboardType="numeric"
+                                left={grossRevenue ? <TextInput.Affix text="$" /> : null}
+                            />
+                            <IconButton
+                                icon="plus"
+                                onPress={handleIncrease}
+                                style={styles.amountIncrementor}
+                                size={20}
+                            />
+                        </View>
 
-                <Text style={styles.label}>Amount:</Text>
-                <View style={styles.amountContainer}>
-                    <IconButton icon="minus" onPress={handleDecrease} style={styles.amountIncrementor} />
-                    <TextInput
-                        mode="flat"
-                        style={styles.amountInput}
-                        theme={{ roundness: scale(3) }}
-                        value={amount.toString()}
-                        onChangeText={handleAmountChange}
-                        keyboardType="numeric"
-                        left={grossRevenue ? <TextInput.Affix text="CA$" /> : null}
-                    />
-                    <IconButton icon="plus" onPress={handleIncrease} style={styles.amountIncrementor} />
-                </View>
-
-                <TouchableRipple onPress={showDatePicker} style={styles.dateContainer}>
-                    <Text style={styles.dateText}>{selectedDate.toDateString()}</Text>
-                </TouchableRipple>
-                {showPicker && (
-                    <DateTimePicker
-                        value={selectedDate}
-                        mode="date"
-                        display="default"
-                        onChange={onChange}
-                    />
-                )}
-            </View>
+                        <TouchableRipple onPress={showDatePicker} style={styles.dateContainer}>
+                            <Text style={styles.dateText}>{selectedDate.toDateString()}</Text>
+                        </TouchableRipple>
+                        {showPicker && (
+                            <DateTimePicker
+                                value={selectedDate}
+                                mode="date"
+                                display="default"
+                                onChange={onChange}
+                            />
+                        )}
+                    </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
 
             <View style={styles.logButtonContainer}>
-                <Button mode="contained" onPress={handleLogTask} style={styles.logButton}>
+                <Button
+                    mode="contained"
+                    onPress={handleLogTask}
+                    style={styles.logButton}
+                    labelStyle={styles.logButtonLabel}
+                >
                     Log
                 </Button>
             </View>
@@ -312,32 +336,35 @@ const TaskLogScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        justifyContent: 'space-between', // Keeps content at top and button at bottom
+        justifyContent: 'space-between',
+    },
+    keyboardAvoidingContainer: {
+        flex: 1,
+        width: '100%',
+    },
+    scrollContainer: {
+        flexGrow: 1,
+        paddingBottom: scale(100),
+        paddingTop: scale(10),
     },
     headerRow: {
         width: '100%',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        height: '7%'
+        paddingVertical: scale(10),
     },
     headerLeftPlaceholder: {
-        width: 44, // Reserve the same space as your tooltip icon container.
+        width: scale(44),
     },
     headerTitle: {
         flex: 1,
         textAlign: 'center',
-        textAlignVertical: 'bottom',
-        fontSize: scale(20),
-        height: '100%'
+        fontSize: scale(18),
+        fontWeight: '600',
     },
     headerRightPlaceholder: {
-        width: 44, // Same width as the left placeholder to balance the header.
-    },
-    headerIconContainer: {
-        width: 44,
-        padding: scale(10),
-        alignItems: 'center',
+        width: scale(44),
     },
     content: {
         padding: scale(16),
@@ -346,6 +373,7 @@ const styles = StyleSheet.create({
     label: {
         fontSize: scale(16),
         marginVertical: scale(8),
+        fontWeight: '500',
     },
     buttonContainer: {
         flexDirection: 'row',
@@ -359,74 +387,73 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         marginVertical: scale(5),
     },
-    wrapButton: {
-        width: '100%',
-        borderRadius: scale(50),
-        overflow: 'hidden',
-    },
-    wrapButtonContent: {
-        minHeight: scale(60),
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: scale(8),
-        paddingVertical: scale(15),
-    },
-    wrapButtonText: {
-        fontSize: scale(18),
-        textAlign: 'center',
-        flexWrap: 'wrap',
-        flexShrink: 1,
-        maxWidth: '100%',
-    },
     amountContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: scale(16),
+        justifyContent: 'center',
     },
     amountInput: {
-        width: scale(100),
+        width: scale(120),
         backgroundColor: '#f6f6f6',
         textAlign: 'center',
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.2,
-        shadowRadius: 1.5,
-        borderRadius: scale(4),
+        marginHorizontal: scale(10),
     },
     amountIncrementor: {
         backgroundColor: '#f6f6f6',
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.2,
-        shadowRadius: 1.5,
         borderWidth: 1,
         borderColor: '#b0b0b0',
     },
     dateContainer: {
-        padding: scale(10),
+        padding: scale(12),
         borderRadius: scale(5),
         backgroundColor: '#f6f6f6',
         marginVertical: scale(8),
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.2,
-        shadowRadius: 1.5,
+        width: '100%',
+        alignItems: 'center',
     },
     dateText: {
-        marginVertical: scale(8),
         fontSize: scale(16),
     },
     logButtonContainer: {
         paddingHorizontal: scale(16),
-        paddingVertical: scale(16),
+        paddingBottom: scale(16),
     },
     logButton: {
         borderRadius: scale(30),
         width: '70%',
         alignSelf: 'center',
+        paddingVertical: scale(6),
+    },
+    logButtonLabel: {
+        fontSize: scale(16),
+        fontWeight: 'bold',
+    },
+    buttonOuterWrapper: {
+        width: '48%',
+        marginVertical: scale(5),
+        borderRadius: scale(50),
+        overflow: 'hidden',
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+    },
+    wrapButton: {
+        width: '100%',
+        height: scale(60),
+    },
+    wrapButtonContent: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: scale(8),
+    },
+    wrapButtonText: {
+        fontSize: scale(16),
+        textAlign: 'center',
+        fontWeight: '500',
     },
 });
 

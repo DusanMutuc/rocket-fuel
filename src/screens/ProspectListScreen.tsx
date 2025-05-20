@@ -148,10 +148,14 @@ const ContactModal: React.FC<ContactModalProps> = ({
                     <PaperText style={modalStyles.label}>Note</PaperText>
                     <PaperTextInput
                         mode="outlined"
-                        style={modalStyles.input}
-                        value={prospectNote}
+                        multiline
+                        numberOfLines={5}
+                        theme={{ roundness: scale(24) }}
+                        style={[modalStyles.input, { height: scale(120), textAlignVertical: 'top' }]}
+                        value={prospectNote} 
                         onChangeText={setProspectNote}
                     />
+
                     {showOriginalContact && (
                         <>
                             <PaperText style={modalStyles.label}>Original Contact</PaperText>
@@ -302,10 +306,14 @@ const AgentModal: React.FC<AgentModalProps> = ({
                     <PaperText style={modalStyles.label}>Notes</PaperText>
                     <PaperTextInput
                         mode="outlined"
-                        style={modalStyles.input}
+                        multiline
+                        numberOfLines={5}
+                        style={[modalStyles.input, { height: scale(120), textAlignVertical: 'top' }]}
                         value={notes}
+                        theme={{roundness: 24} }
                         onChangeText={setNotes}
                     />
+
                     <PaperText style={modalStyles.label}>Original Contact</PaperText>
                     <TouchableRipple style={modalStyles.datePickerButton} onPress={() => setShowDatePicker(true)}>
                         <PaperText>{originalContact.toLocaleDateString()}</PaperText>
@@ -784,19 +792,20 @@ const ContactsScreen = () => {
                         </PaperButton>
                     </Surface>
                 </PaperModal>
+
+                <Snackbar
+                    visible={snackbarVisible}
+                    onDismiss={() => setSnackbarVisible(false)}
+                    duration={3000}
+                    action={{
+                        label: 'OK',
+                        onPress: () => setSnackbarVisible(false),
+                    }}
+                >
+                    {snackbarMessage}
+                </Snackbar>
             </Portal>
 
-            <Snackbar
-                visible={snackbarVisible}
-                onDismiss={() => setSnackbarVisible(false)}
-                duration={3000}
-                action={{
-                    label: 'OK',
-                    onPress: () => setSnackbarVisible(false),
-                }}
-            >
-                {snackbarMessage}
-            </Snackbar>
         </Surface>
     );
 };
@@ -855,9 +864,10 @@ const modalStyles = StyleSheet.create({
     },
     modalButton: {
         marginVertical: scale(6),
-        width: '50%',
+        width: '100%', // more room for text
         alignSelf: 'center',
     },
+
 });
 
 export default ContactsScreen;

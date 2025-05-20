@@ -17,8 +17,8 @@ const guidelineBaseWidth = 375;
 const scale = (size: number) => (SCREEN_WIDTH / guidelineBaseWidth) * size;
 
 export const LoginScreen: React.FC<LoginScreenProps> = () => {
-    const [email, setEmail] = useState<string>('');
-    const [password, setPassword] = useState<string>('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [snackbarVisible, setSnackbarVisible] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
     const { refreshProfile } = useAuth();
@@ -33,16 +33,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
                 return;
             }
 
-            // Force fresh session and profile
-            const {
-                data: { session: newSession },
-            } = await supabase.auth.getSession();
-
+            const { data: { session: newSession } } = await supabase.auth.getSession();
             if (newSession?.user) {
-                console.log("Login successful, refreshing profile...");
+                console.log('Login successful, refreshing profile...');
                 await refreshProfile();
             } else {
-                console.warn("Session missing after login");
+                console.warn('Session missing after login');
             }
         } catch (err: any) {
             setSnackbarMessage(err.message || 'Unexpected error');
@@ -50,30 +46,47 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
         }
     };
 
+    const handleForgotPassword = async () => {
+        if (!email) {
+            setSnackbarMessage('Please enter your email.');
+            setSnackbarVisible(true);
+            return;
+        }
+
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: 'https://boisterous-bombolone-5f86bc.netlify.app/',
+        });
+
+        setSnackbarMessage(error ? error.message : 'Reset link sent. Check your inbox!');
+        setSnackbarVisible(true);
+    };
+
     return (
         <Surface style={styles.container}>
             <View style={styles.card}>
                 <Text style={styles.header}>Welcome Back</Text>
+
                 <TextInput
                     mode="outlined"
-                    label="Email"
+                    label= "Email"
                     value={email}
                     onChangeText={setEmail}
                     autoCapitalize="none"
                     style={styles.input}
-                    left={<TextInput.Icon icon="email-outline" />}
                 />
+
+
                 <TextInput
+                    label= "Password"
                     mode="outlined"
-                    label="Password"
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry
                     autoCapitalize="none"
                     autoCorrect={false}
                     style={styles.input}
-                    left={<TextInput.Icon icon="lock-outline" />}
                 />
+
                 <Button
                     mode="contained"
                     onPress={handleSignIn}
@@ -82,15 +95,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
                 >
                     Sign In
                 </Button>
+                <Button
+                    mode="text"
+                    onPress={handleForgotPassword}
+                    style={styles.forgotButton}
+                >
+                    Forgot Password?
+                </Button>
             </View>
+
             <Snackbar
                 visible={snackbarVisible}
                 onDismiss={() => setSnackbarVisible(false)}
                 duration={3000}
-                action={{
-                    label: 'OK',
-                    onPress: () => setSnackbarVisible(false),
-                }}
+                action={{ label: 'OK', onPress: () => setSnackbarVisible(false) }}
             >
                 {snackbarMessage}
             </Snackbar>
@@ -119,7 +137,7 @@ const styles = StyleSheet.create({
     },
     input: {
         marginBottom: scale(16),
-        backgroundColor: '#fff',
+        backgroundColor: '#fff', // Ensure icons don't overlap
     },
     button: {
         marginTop: scale(8),
@@ -127,5 +145,9 @@ const styles = StyleSheet.create({
     },
     buttonContent: {
         paddingVertical: scale(8),
+    },
+    forgotButton: {
+        marginTop: scale(8),
+        alignSelf: 'center',
     },
 });

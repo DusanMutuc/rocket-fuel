@@ -83,7 +83,20 @@ const ProgressScreen = () => {
                 startDate = format(oneWeekAgo, 'yyyy-MM-dd');
                 endDate = format(new Date(), 'yyyy-MM-dd');
             } else {
-                startDate = '2025-03-15';
+                // Pull the most recent course start date
+                const { data: course, error: courseError } = await supabase
+                    .from('courses')
+                    .select('start_date')
+                    .order('start_date', { ascending: false })
+                    .limit(1)
+                    .single();
+
+                if (courseError || !course?.start_date) {
+                    setError('Error fetching course start date.');
+                    return;
+                }
+
+                startDate = course.start_date;
                 endDate = format(new Date(), 'yyyy-MM-dd');
             }
 
@@ -101,7 +114,6 @@ const ProgressScreen = () => {
                 minimalAmounts[task.name] = task.minimal_amount;
             });
 
-            // Mapping from chart metrics to task type names, excluding 'baseline' and 'gross_revenue'
             const keyMapping: Record<Exclude<ChartMetric, 'baseline' | 'gross_revenue'>, string> = {
                 asks: 'ask',
                 follow_ups: 'follow_up',
@@ -172,6 +184,7 @@ const ProgressScreen = () => {
 
             setChartData(transformed);
         }
+
 
         fetchData();
     }, [user, viewMode]);
@@ -276,7 +289,7 @@ const ProgressScreen = () => {
                                                             selectedLine === null ? 3 : selectedLine === item.key ? 5 : 2
                                                         }
                                                         animate={{ type: 'timing', duration: 300 }}
-                                                        curveType="cardinal50"
+                                                        curveType="linear"
                                                     />
                                                 ))}
                                         </>
