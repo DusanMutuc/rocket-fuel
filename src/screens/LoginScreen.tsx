@@ -5,6 +5,8 @@ import { supabase } from '../lib/supabase';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { AuthStackParamList } from '../navigation/AuthNavigator';
 import { useAuth } from '../contexts/AuthContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 
 type LoginScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
 
@@ -62,58 +64,61 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
     };
 
     return (
-        <Surface style={styles.container}>
-            <View style={styles.card}>
-                <Text style={styles.header}>Welcome Back</Text>
+        <SafeAreaView style={styles.safeArea}>
+            <View style={styles.wrapper}>
+                <Surface style={styles.card}>
+                    <Text style={styles.header}>Welcome Back</Text>
 
-                <TextInput
-                    mode="outlined"
-                    label= "Email"
-                    value={email}
-                    onChangeText={setEmail}
-                    autoCapitalize="none"
-                    style={styles.input}
-                />
+                    <TextInput
+                        mode="outlined"
+                        label="Email"
+                        value={email}
+                        onChangeText={setEmail}
+                        autoCapitalize="none"
+                        style={styles.input}
+                    />
 
+                    <TextInput
+                        label="Password"
+                        mode="outlined"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        style={styles.input}
+                    />
 
-                <TextInput
-                    label= "Password"
-                    mode="outlined"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    style={styles.input}
-                />
+                    <Button
+                        mode="contained"
+                        onPress={handleSignIn}
+                        style={styles.button}
+                        contentStyle={styles.buttonContent}
+                    >
+                        Sign In
+                    </Button>
+                    <Button
+                        mode="text"
+                        onPress={handleForgotPassword}
+                        style={styles.forgotButton}
+                    >
+                        Forgot Password?
+                    </Button>
+                </Surface>
 
-                <Button
-                    mode="contained"
-                    onPress={handleSignIn}
-                    style={styles.button}
-                    contentStyle={styles.buttonContent}
+                <Snackbar
+                    visible={snackbarVisible}
+                    onDismiss={() => setSnackbarVisible(false)}
+                    duration={3000}
+                    action={{ label: 'OK', onPress: () => setSnackbarVisible(false) }}
                 >
-                    Sign In
-                </Button>
-                <Button
-                    mode="text"
-                    onPress={handleForgotPassword}
-                    style={styles.forgotButton}
-                >
-                    Forgot Password?
-                </Button>
+                    {snackbarMessage}
+                </Snackbar>
             </View>
+        </SafeAreaView>
 
-            <Snackbar
-                visible={snackbarVisible}
-                onDismiss={() => setSnackbarVisible(false)}
-                duration={3000}
-                action={{ label: 'OK', onPress: () => setSnackbarVisible(false) }}
-            >
-                {snackbarMessage}
-            </Snackbar>
-        </Surface>
     );
+
 };
 
 const styles = StyleSheet.create({
@@ -121,14 +126,11 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         padding: scale(16),
+        alignItems: 'center',
+        alignSelf: 'center',
         backgroundColor: '#f5f5f5',
     },
-    card: {
-        backgroundColor: '#fff',
-        padding: scale(20),
-        borderRadius: scale(8),
-        elevation: 4,
-    },
+   
     header: {
         fontSize: scale(24),
         fontWeight: 'bold',
@@ -150,4 +152,25 @@ const styles = StyleSheet.create({
         marginTop: scale(8),
         alignSelf: 'center',
     },
+    safeArea: {
+        flex: 1,
+        backgroundColor: '#f5f5f5',
+    },
+
+    wrapper: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: scale(16),
+    },
+
+    card: {
+        width: '100%',
+        maxWidth: 400,
+        backgroundColor: '#fff',
+        padding: scale(20),
+        borderRadius: scale(8),
+        elevation: 4,
+    },
+
 });

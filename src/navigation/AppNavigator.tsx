@@ -75,12 +75,10 @@ function MainTabs() {
                 name="Home"
                 component={HomeScreen}
                 options={{
+                    headerShown: true, // turn off header ONLY for Home
+                    headerTransparent: true,
                     tabBarIcon: ({ color, size }) => (
-                        <MaterialCommunityIcons
-                            name="home"
-                            color={color}
-                            size={size}
-                        />
+                        <MaterialCommunityIcons name="home" color={color} size={size} />
                     ),
                 }}
             />
@@ -95,6 +93,7 @@ function MainTabs() {
                             size={size}
                         />
                     ),
+
                 }}
             />
             <Tab.Screen
