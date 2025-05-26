@@ -30,10 +30,9 @@ const HeaderTooltip: React.FC<HeaderTooltipProps> = ({
     // Calculate popover width as 90% of screen width, capped at 400 for larger screens.
     const popoverWidth = Math.min(width * 0.9, 400);
 
-    // Adjust top margin to move the icon up; changed +10 to +5 (or adjust further as desired)
     const combinedContainerStyle = [
         styles.iconContainer,
-        { top: insets.top - 20, right: insets.right + 10 },
+        { top: insets.top - 40, right: insets.right + 10 },
         containerStyle,
     ];
 

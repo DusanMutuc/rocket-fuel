@@ -1,16 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Dimensions, Text, TouchableOpacity } from 'react-native';
-import { ActivityIndicator, Button, Surface, IconButton, Portal, Snackbar } from 'react-native-paper';
+import { StyleSheet, View, Dimensions, ScrollView } from 'react-native';
+import {
+    Text,
+    Button,
+    Surface,
+    ActivityIndicator,
+    Snackbar,
+} from 'react-native-paper';
+import { useHeaderHeight } from '@react-navigation/elements';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { CartesianChart, Line, Area } from 'victory-native';
+import { format, subDays } from 'date-fns';
+import { useFont } from '@shopify/react-native-skia';
+
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { useFont } from '@shopify/react-native-skia';
-import { format, subDays } from 'date-fns';
-import { CartesianChart, Line, Area } from 'victory-native';
-import Legend from '../components/Legend';
 import PopoverTooltip from '../components/PopoverTooltip';
+import Legend from '../components/Legend';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SCREEN_HEIGHT = Dimensions.get('window').height;
 const guidelineBaseWidth = 375;
 const scale = (size: number) => (SCREEN_WIDTH / guidelineBaseWidth) * size;
 
@@ -45,9 +53,13 @@ const ProgressScreen = () => {
     const { user } = useAuth();
     const [chartData, setChartData] = useState<any[]>([]);
     const [error, setError] = useState<string | undefined>();
+    const [selectedLine, setSelectedLine] = useState<ChartMetric | null>(null);
+    const [viewMode, setViewMode] = useState<'weekly' | 'alltime'>('weekly');
+    const [snackbarVisible, setSnackbarVisible] = useState(false);
+
+    const headerHeight = useHeaderHeight();
     const font = useFont(require('../../assets/Fonts/SpaceMono-Regular.ttf'), 12);
 
-    // Legend data (gross revenue is included)
     const legendData: LegendItem[] = [
         { key: 'asks', label: 'Asks', color: '#c71aad' },
         { key: 'follow_ups', label: 'Follow-ups', color: '#149240' },
@@ -56,19 +68,14 @@ const ProgressScreen = () => {
         { key: 'handwritten_cards', label: 'Handwritten Cards', color: '#ef8c00' },
         { key: 'exercises', label: 'Exercises', color: '#7631af' },
         { key: 'gross_revenue', label: 'Gross Revenue', color: 'black' },
-
     ];
-
-    // State for currently selected legend key.
-    const [selectedLine, setSelectedLine] = useState<ChartMetric | null>(null);
-    const [viewMode, setViewMode] = useState<'weekly' | 'alltime'>('weekly');
 
     const handleLegendPress = (key: ChartMetric) => {
         setSelectedLine(selectedLine === key ? null : key);
     };
 
     const toggleViewMode = () => {
-        setViewMode((prev) => (prev === 'weekly' ? 'alltime' : 'weekly'));
+        setViewMode(prev => (prev === 'weekly' ? 'alltime' : 'weekly'));
     };
 
     useEffect(() => {
@@ -79,11 +86,9 @@ const ProgressScreen = () => {
             let endDate: string;
 
             if (viewMode === 'weekly') {
-                const oneWeekAgo = subDays(new Date(), 7);
-                startDate = format(oneWeekAgo, 'yyyy-MM-dd');
+                startDate = format(subDays(new Date(), 7), 'yyyy-MM-dd');
                 endDate = format(new Date(), 'yyyy-MM-dd');
             } else {
-                // Pull the most recent course start date
                 const { data: course, error: courseError } = await supabase
                     .from('courses')
                     .select('start_date')
@@ -110,11 +115,11 @@ const ProgressScreen = () => {
             }
 
             const minimalAmounts: Record<string, number> = {};
-            taskTypesData.forEach((task: any) => {
+            taskTypesData.forEach(task => {
                 minimalAmounts[task.name] = task.minimal_amount;
             });
 
-            const keyMapping: Record<Exclude<ChartMetric, 'baseline' | 'gross_revenue'>, string> = {
+            const keyMapping = {
                 asks: 'ask',
                 follow_ups: 'follow_up',
                 action_promises: 'action_promise',
@@ -122,11 +127,6 @@ const ProgressScreen = () => {
                 handwritten_cards: 'handwritten_card',
                 exercises: 'exercise',
             };
-
-            if (!minimalAmounts[keyMapping.asks]) {
-                setError('Minimal amount for asks not found in task_types.');
-                return;
-            }
 
             const scalingFactors = {
                 asks: 1,
@@ -137,54 +137,52 @@ const ProgressScreen = () => {
                 exercises: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.exercises],
             };
 
-            const { data, error: rpcError } = await supabase.rpc(
-                'get_daily_task_counts_all_types_in_range',
-                {
-                    uid: user.id,
-                    start_date: startDate,
-                    end_date: endDate,
-                }
-            );
+            const { data, error: rpcError } = await supabase.rpc('get_daily_task_counts_all_types_in_range', {
+                uid: user.id,
+                start_date: startDate,
+                end_date: endDate,
+            });
 
             if (rpcError) {
                 setError(rpcError.message);
                 return;
             }
 
-            let runningAsks = 0;
-            let runningFollowUps = 0;
-            let runningOpenHouses = 0;
-            let runningHandwrittenCards = 0;
-            let runningActionPromises = 0;
-            let runningExercises = 0;
-            let runningGrossRevenue = 0;
+            let running = {
+                asks: 0,
+                follow_ups: 0,
+                open_houses: 0,
+                handwritten_cards: 0,
+                action_promises: 0,
+                exercises: 0,
+                gross_revenue: 0,
+            };
             const baselineDaily = minimalAmounts[keyMapping.asks] / 7;
 
             const transformed = (data as RowWithAllTypes[]).map((row, index) => {
-                runningAsks += row.asks;
-                runningFollowUps += row.follow_ups;
-                runningOpenHouses += row.open_houses;
-                runningHandwrittenCards += row.handwritten_cards;
-                runningActionPromises += row.action_promises;
-                runningExercises += row.exercises;
-                runningGrossRevenue += row.gross_revenue;
+                running.asks += row.asks;
+                running.follow_ups += row.follow_ups;
+                running.open_houses += row.open_houses;
+                running.handwritten_cards += row.handwritten_cards;
+                running.action_promises += row.action_promises;
+                running.exercises += row.exercises;
+                running.gross_revenue += row.gross_revenue;
 
                 return {
                     x: new Date(row.day),
-                    asks: runningAsks * scalingFactors.asks,
-                    follow_ups: runningFollowUps * scalingFactors.follow_ups,
-                    open_houses: runningOpenHouses * scalingFactors.open_houses,
-                    handwritten_cards: runningHandwrittenCards * scalingFactors.handwritten_cards,
-                    action_promises: runningActionPromises * scalingFactors.action_promises,
-                    exercises: runningExercises * scalingFactors.exercises,
-                    gross_revenue: runningGrossRevenue,
+                    asks: running.asks * scalingFactors.asks,
+                    follow_ups: running.follow_ups * scalingFactors.follow_ups,
+                    open_houses: running.open_houses * scalingFactors.open_houses,
+                    handwritten_cards: running.handwritten_cards * scalingFactors.handwritten_cards,
+                    action_promises: running.action_promises * scalingFactors.action_promises,
+                    exercises: running.exercises * scalingFactors.exercises,
+                    gross_revenue: running.gross_revenue,
                     baseline: baselineDaily * (index + 1),
                 };
             });
 
             setChartData(transformed);
         }
-
 
         fetchData();
     }, [user, viewMode]);
@@ -206,142 +204,160 @@ const ProgressScreen = () => {
     }
 
     return (
-        <Surface style={styles.container}>
-            {/* Standardized PopoverTooltip renders absolutely at the top-right */}
-            <PopoverTooltip
-                tooltipText={
-                    "Welcome to your Progress Screen! Here you can view your daily progress trends, toggle between weekly and all-time views, and analyze your performance.\n\nThe red area is below the minimal threshold, so try to keep all your tasks above it!"
-                }
-            />
-
-            <View style={styles.content}>
-                <View style={styles.chartContainer}>
-                    {chartData.length > 0 && (
-                        <>
-                            {selectedLine === 'gross_revenue' ? (
-                                // Gross revenue chart: display only gross_revenue as y-axis.
-                                <CartesianChart
-                                    axisOptions={{
-                                        font,
-                                        tickCount: { x: 3, y: 10 },
-                                        labelOffset: { x: -2, y: 0 },
-                                        formatXLabel: (x) => format(x, 'MM/dd'),
-                                    }}
-                                    data={chartData}
-                                    xKey="x"
-                                    yKeys={['gross_revenue']}
-                                >
-                                    {({ points }) => (
-                                        <>
+        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+            <View style={[styles.screen, { paddingTop: headerHeight }]}>
+                <PopoverTooltip
+                    tooltipText={
+                        "Welcome to your Progress Screen! Here you can view your daily progress trends, toggle between weekly and all-time views, and analyze your performance.\n\nThe red area is below the minimal threshold, so try to keep all your tasks above it!"
+                    }
+                />
+                <View style={styles.chartAndLegendContainer}>
+                    <View style={styles.flexChartWrapper}>
+                        {chartData.length > 0 && (
+                            <>
+                                {selectedLine === 'gross_revenue' ? (
+                                    <CartesianChart
+                                        axisOptions={{
+                                            font,
+                                            tickCount: { x: 3, y: 10 },
+                                            formatXLabel: x => format(x, 'MM/dd'),
+                                        }}
+                                        data={chartData}
+                                        xKey="x"
+                                        yKeys={['gross_revenue']}
+                                    >
+                                        {({ points }) => (
                                             <Line
-                                                key="gross_revenue-line"
                                                 points={(points as any)['gross_revenue']}
-                                                color='1d1d1d'
+                                                color="#1d1d1d"
                                                 strokeWidth={5}
                                                 animate={{ type: 'timing', duration: 300 }}
                                                 curveType="catmullRom100"
                                             />
-                                        </>
-                                    )}
-                                </CartesianChart>
-                            ) : (
-                                // Normal chart: display all metrics except gross_revenue.
-                                <CartesianChart
-                                    axisOptions={{
-                                        font,
-                                        tickCount: { x: 3, y: 10 },
-                                        labelOffset: { x: -2, y: 0 },
-                                        formatXLabel: (x) => format(x, 'MM/dd'),
-                                    }}
-                                    data={chartData}
-                                    xKey="x"
-                                    yKeys={[
-                                        'asks',
-                                        'follow_ups',
-                                        'action_promises',
-                                        'open_houses',
-                                        'handwritten_cards',
-                                        'exercises',
-                                        'baseline',
-                                    ]}
-                                >
-                                    {({ points, chartBounds }) => (
-                                        <>
-                                            <Area
-                                                key="baseline-area"
-                                                points={(points as any)['baseline']}
-                                                    color='#A30000'
-                                                opacity={0.15}
-                                                y0={chartBounds.bottom}
-                                            />
-                                            {legendData
-                                                .filter((item) => item.key !== 'gross_revenue')
-                                                .map((item) => (
-                                                    <Line
-                                                        key={item.key}
-                                                        points={(points as any)[item.key]}
-                                                        color={
-                                                            selectedLine === null || selectedLine === item.key
-                                                                ? item.color
-                                                                : 'lightgray'
-                                                        }
-                                                        strokeWidth={
-                                                            selectedLine === null ? 3 : selectedLine === item.key ? 5 : 2
-                                                        }
-                                                        animate={{ type: 'timing', duration: 300 }}
-                                                        curveType="linear"
-                                                    />
-                                                ))}
-                                        </>
-                                    )}
-                                </CartesianChart>
-                            )}
-                        </>
-                    )}
+                                        )}
+                                    </CartesianChart>
+                                ) : (
+                                    <CartesianChart
+                                        axisOptions={{
+                                            font,
+                                            tickCount: { x: 3, y: 10 },
+                                            formatXLabel: x => format(x, 'MM/dd'),
+                                        }}
+                                        data={chartData}
+                                        xKey="x"
+                                        yKeys={[
+                                            'asks',
+                                            'follow_ups',
+                                            'action_promises',
+                                            'open_houses',
+                                            'handwritten_cards',
+                                            'exercises',
+                                            'baseline',
+                                        ]}
+                                    >
+                                        {({ points, chartBounds }) => (
+                                            <>
+                                                <Area
+                                                    points={points.baseline}
+                                                    color="#A30000"
+                                                    opacity={0.15}
+                                                    y0={chartBounds.bottom}
+                                                />
+                                                {legendData
+                                                    .filter(item => item.key !== 'gross_revenue')
+                                                    .map(item => (
+                                                        <Line
+                                                            key={item.key}
+                                                            points={(points as any)[item.key]}
+                                                            color={
+                                                                selectedLine === null || selectedLine === item.key
+                                                                    ? item.color
+                                                                    : 'lightgray'
+                                                            }
+                                                            strokeWidth={
+                                                                selectedLine === null
+                                                                    ? 3
+                                                                    : selectedLine === item.key
+                                                                        ? 5
+                                                                        : 2
+                                                            }
+                                                            animate={{ type: 'timing', duration: 300 }}
+                                                            curveType="linear"
+                                                        />
+                                                    ))}
+                                            </>
+                                        )}
+                                    </CartesianChart>
+                                )}
+                            </>
+                        )}
+                    </View>
+
+                    <View style={styles.legendContainer}>
+                        <Legend
+                            items={legendData}
+                            onPress={handleLegendPress}
+                            selected={selectedLine}
+                        />
+                    </View>
                 </View>
-                <View style={styles.legendContainer}>
-                    <Legend items={legendData} onPress={handleLegendPress} selected={selectedLine} />
-                </View>
+
+                <Button
+                    mode="contained"
+                    onPress={toggleViewMode}
+                    style={styles.toggleButton}
+                >
+                    {viewMode === 'weekly' ? 'Switch to All Time' : 'Switch to Weekly'}
+                </Button>
+
+                <Snackbar
+                    visible={snackbarVisible}
+                    onDismiss={() => setSnackbarVisible(false)}
+                    duration={3000}
+                >
+                    {error}
+                </Snackbar>
             </View>
-            <Button mode="contained" onPress={toggleViewMode} style={styles.toggleButton}>
-                {viewMode === 'weekly' ? 'Switch to All Time' : 'Switch to Weekly'}
-            </Button>
-        </Surface>
+        </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
+    safeArea: {
         flex: 1,
-        paddingTop: scale(60), // Reserve space for the absolute PopoverTooltip
-        alignItems: 'center',
-        width: '100%',
+        backgroundColor: '#f5f5f5',
     },
-    content: {
+    screen: {
         flex: 1,
-        width: '90%',
-        flexDirection: 'column',
+        marginTop: -50,
     },
-    chartContainer: {
+    chartAndLegendContainer: {
+        flex: 1,
+        justifyContent: 'space-between',
+        paddingHorizontal: scale(16),
+        paddingBottom: scale(20),
+    },
+    flexChartWrapper: {
         flex: 1,
         backgroundColor: '#fff',
         padding: scale(5),
         borderWidth: scale(1),
         borderRadius: scale(20),
+        minHeight: scale(200),
+        marginTop: -40
     },
     legendContainer: {
-        marginTop: scale(10),
+        marginTop: scale(20),
         backgroundColor: '#fff',
         borderColor: 'black',
         borderWidth: scale(1),
         borderRadius: scale(10),
         padding: scale(10),
-        alignSelf: 'stretch',
-        marginBottom: scale(10),
     },
     toggleButton: {
-        marginBottom: scale(16),
+        alignSelf: 'center',
         width: '64%',
+        marginBottom: scale(16),
     },
     loaderContainer: {
         flex: 1,
