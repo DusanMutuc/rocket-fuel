@@ -2,7 +2,7 @@
   "expo": {
     "name": "MyRealEstateApp",
     "slug": "MyRealEstateApp",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -13,6 +13,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "buildNumber": "2",
       "supportsTablet": true,
       "bundleIdentifier": "com.twentynewclients.rocketfuel",
       "infoPlist": {
