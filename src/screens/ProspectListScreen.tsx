@@ -1,10 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, View, ScrollView, Dimensions } from 'react-native';
+import {
+    FlatList,
+    StyleSheet,
+    View,
+    ScrollView,
+    Dimensions,
+    Platform,
+} from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-
 import {
     ActivityIndicator,
     Button as PaperButton,
@@ -18,13 +24,22 @@ import {
     Snackbar,
 } from 'react-native-paper';
 import PopoverTooltip from '../components/PopoverTooltip';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-// Define a scaling function based on the device's screen width.
+// ——————————————————————————————————————
+// Scaling helper
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const guidelineBaseWidth = 375; // e.g., iPhone 8 width
+const guidelineBaseWidth = 375;
 const scale = (size: number) => (SCREEN_WIDTH / guidelineBaseWidth) * size;
 
-// ---------- Contact Modal Component (for Prospect & SOI) ----------
+// Picker-wrapper constants
+const ROW_HEIGHT = scale(70);
+const VISIBLE_ROWS = 3;
+const FULL_WHEEL = ROW_HEIGHT * VISIBLE_ROWS; // e.g. 150
+const VISIBLE_HEIGHT = scale(80);             // e.g. 60
+
+// ——————————————————————————————————————
+// ContactModal (Prospect & SOI)
 type ContactModalProps = {
     visible: boolean;
     onDismiss: () => void;
@@ -37,7 +52,7 @@ type ContactModalProps = {
         prospect_note: string;
         original_contact?: string;
     };
-    onSave: (updatedContact: {
+    onSave: (updated: {
         first_name: string;
         last_name: string;
         email: string;
@@ -75,11 +90,11 @@ const ContactModal: React.FC<ContactModalProps> = ({
             setPhoneNumber(initialContact.phone_number);
             setAddress(initialContact.address);
             setProspectNote(initialContact.prospect_note);
-            if (initialContact.original_contact) {
-                setOriginalContact(new Date(initialContact.original_contact));
-            } else {
-                setOriginalContact(new Date());
-            }
+            setOriginalContact(
+                initialContact.original_contact
+                    ? new Date(initialContact.original_contact)
+                    : new Date()
+            );
         } else {
             setFirstName('');
             setLastName('');
@@ -91,7 +106,7 @@ const ContactModal: React.FC<ContactModalProps> = ({
         }
     }, [initialContact, visible]);
 
-    const handleSave = () => {
+    const handleSave = () =>
         onSave({
             first_name: firstName,
             last_name: lastName,
@@ -99,95 +114,131 @@ const ContactModal: React.FC<ContactModalProps> = ({
             phone_number: phoneNumber,
             address,
             prospect_note: prospectNote,
-            original_contact: showOriginalContact ? originalContact.toISOString() : undefined,
+            original_contact: showOriginalContact
+                ? originalContact.toISOString()
+                : undefined,
         });
-    };
 
     return (
-        <PaperModal visible={visible} onDismiss={onDismiss} contentContainerStyle={modalStyles.modalContent}>
-            <ScrollView persistentScrollbar={true} showsVerticalScrollIndicator={true}>
-                <Surface style={modalStyles.modalInner}>
-                    <PaperText style={modalStyles.modalHeader}>{title}</PaperText>
-                    <PaperText style={modalStyles.label}>First Name</PaperText>
-                    <PaperTextInput
-                        mode="outlined"
-                        style={modalStyles.input}
-                        value={firstName}
-                        onChangeText={setFirstName}
-                    />
-                    <PaperText style={modalStyles.label}>Last Name</PaperText>
-                    <PaperTextInput
-                        mode="outlined"
-                        style={modalStyles.input}
-                        value={lastName}
-                        onChangeText={setLastName}
-                    />
-                    <PaperText style={modalStyles.label}>Email</PaperText>
-                    <PaperTextInput
-                        mode="outlined"
-                        style={modalStyles.input}
-                        value={email}
-                        onChangeText={setEmail}
-                        keyboardType="email-address"
-                    />
-                    <PaperText style={modalStyles.label}>Phone</PaperText>
-                    <PaperTextInput
-                        mode="outlined"
-                        style={modalStyles.input}
-                        value={phoneNumber}
-                        onChangeText={setPhoneNumber}
-                        keyboardType="phone-pad"
-                    />
-                    <PaperText style={modalStyles.label}>Address</PaperText>
-                    <PaperTextInput
-                        mode="outlined"
-                        style={modalStyles.input}
-                        value={address}
-                        onChangeText={setAddress}
-                    />
-                    <PaperText style={modalStyles.label}>Note</PaperText>
-                    <PaperTextInput
-                        mode="outlined"
-                        multiline
-                        numberOfLines={5}
-                        theme={{ roundness: scale(24) }}
-                        style={[modalStyles.input, { height: scale(120), textAlignVertical: 'top' }]}
-                        value={prospectNote} 
-                        onChangeText={setProspectNote}
-                    />
+        <PaperModal
+            visible={visible}
+            onDismiss={onDismiss}
+            contentContainerStyle={modalStyles.modalContent}
+        >
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={modalStyles.scrollContent}
+                persistentScrollbar
+                showsVerticalScrollIndicator
+            >
+                <PaperText style={modalStyles.modalHeader}>{title}</PaperText>
 
-                    {showOriginalContact && (
-                        <>
-                            <PaperText style={modalStyles.label}>Original Contact</PaperText>
-                            <TouchableRipple style={modalStyles.datePickerButton} onPress={() => setShowDatePicker(true)}>
-                                <PaperText>{originalContact.toLocaleDateString()}</PaperText>
-                            </TouchableRipple>
-                            {showDatePicker && (
-                                <DateTimePicker
-                                    value={originalContact}
-                                    mode="date"
-                                    display="default"
-                                    onChange={(event, selectedDate) => {
-                                        setShowDatePicker(false);
-                                        if (selectedDate) setOriginalContact(selectedDate);
-                                    }}
-                                />
-                            )}
-                        </>
-                    )}
-                    <PaperButton mode="contained" onPress={handleSave} style={modalStyles.modalButton}>
-                        Save Changes
-                    </PaperButton>
-                    <PaperButton mode="contained" onPress={onDismiss} style={modalStyles.modalButton}>
-                        Cancel
-                    </PaperButton>
-                </Surface>
+                {/* First Name */}
+                <PaperText style={modalStyles.label}>First Name</PaperText>
+                <PaperTextInput
+                    mode="outlined"
+                    style={modalStyles.input}
+                    value={firstName}
+                    onChangeText={setFirstName}
+                />
+
+                {/* Last Name */}
+                <PaperText style={modalStyles.label}>Last Name</PaperText>
+                <PaperTextInput
+                    mode="outlined"
+                    style={modalStyles.input}
+                    value={lastName}
+                    onChangeText={setLastName}
+                />
+
+                {/* Email */}
+                <PaperText style={modalStyles.label}>Email</PaperText>
+                <PaperTextInput
+                    mode="outlined"
+                    style={modalStyles.input}
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                />
+
+                {/* Phone */}
+                <PaperText style={modalStyles.label}>Phone</PaperText>
+                <PaperTextInput
+                    mode="outlined"
+                    style={modalStyles.input}
+                    value={phoneNumber}
+                    onChangeText={setPhoneNumber}
+                    keyboardType="phone-pad"
+                />
+
+                {/* Address */}
+                <PaperText style={modalStyles.label}>Address</PaperText>
+                <PaperTextInput
+                    mode="outlined"
+                    style={modalStyles.input}
+                    value={address}
+                    onChangeText={setAddress}
+                />
+
+                {/* Note */}
+                <PaperText style={modalStyles.label}>Note</PaperText>
+                <PaperTextInput
+                    mode="outlined"
+                    multiline
+                    numberOfLines={5}
+                    style={[modalStyles.input, { height: scale(120), textAlignVertical: 'top' }]}
+                    theme={{ roundness: scale(24) }}
+                    value={prospectNote}
+                    onChangeText={setProspectNote}
+                />
+
+                {/* Original Contact */}
+                {showOriginalContact && (
+                    <>
+                        <PaperText style={modalStyles.label}>Original Contact</PaperText>
+                        <TouchableRipple
+                            style={modalStyles.datePickerButton}
+                            onPress={() => setShowDatePicker(true)}
+                        >
+                            <PaperText>
+                                {originalContact.toLocaleDateString()}
+                            </PaperText>
+                        </TouchableRipple>
+                        {showDatePicker && (
+                            <DateTimePicker
+                                value={originalContact}
+                                mode="date"
+                                display="default"
+                                onChange={(_, d) => {
+                                    setShowDatePicker(false);
+                                    if (d) setOriginalContact(d);
+                                }}
+                            />
+                        )}
+                    </>
+                )}
+
+                <PaperButton
+                    mode="contained"
+                    onPress={handleSave}
+                    style={modalStyles.modalButton}
+                >
+                    Save Changes
+                </PaperButton>
+                <PaperButton
+                    mode="outlined"
+                    onPress={onDismiss}
+                    style={modalStyles.modalButton}
+                >
+                    Cancel
+                </PaperButton>
             </ScrollView>
         </PaperModal>
     );
 };
 
-// ---------- Agent Modal Component (for Agents) ----------
+// ——————————————————————————————————————
+// AgentModal
 type AgentModalProps = {
     visible: boolean;
     onDismiss: () => void;
@@ -200,7 +251,7 @@ type AgentModalProps = {
         notes: string;
         original_contact: string;
     };
-    onSave: (updatedAgent: {
+    onSave: (updated: {
         name: string;
         phone_number: string;
         email: string;
@@ -248,7 +299,7 @@ const AgentModal: React.FC<AgentModalProps> = ({
         }
     }, [initialAgent, visible]);
 
-    const handleSave = () => {
+    const handleSave = () =>
         onSave({
             name,
             phone_number: phoneNumber,
@@ -258,91 +309,121 @@ const AgentModal: React.FC<AgentModalProps> = ({
             notes,
             original_contact: originalContact.toISOString().split('T')[0],
         });
-    };
 
     return (
-        <PaperModal visible={visible} onDismiss={onDismiss} contentContainerStyle={modalStyles.modalContent}>
-            <ScrollView>
-                <Surface style={modalStyles.modalInner}>
-                    <PaperText style={modalStyles.modalHeader}>{title}</PaperText>
+        <PaperModal
+            visible={visible}
+            onDismiss={onDismiss}
+            contentContainerStyle={modalStyles.modalContent}
+        >
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={modalStyles.scrollContent}
+            >
+                <PaperText style={modalStyles.modalHeader}>{title}</PaperText>
 
-                    <PaperText style={modalStyles.label}>Name</PaperText>
-                    <PaperTextInput
-                        mode="outlined"
-                        style={modalStyles.input}
-                        value={name}
-                        onChangeText={setName}
-                    />
-                    <PaperText style={modalStyles.label}>Phone</PaperText>
-                    <PaperTextInput
-                        mode="outlined"
-                        style={modalStyles.input}
-                        value={phoneNumber}
-                        onChangeText={setPhoneNumber}
-                        keyboardType="phone-pad"
-                    />
-                    <PaperText style={modalStyles.label}>Email</PaperText>
-                    <PaperTextInput
-                        mode="outlined"
-                        style={modalStyles.input}
-                        value={email}
-                        onChangeText={setEmail}
-                        keyboardType="email-address"
-                    />
-                    <PaperText style={modalStyles.label}>Address</PaperText>
-                    <PaperTextInput
-                        mode="outlined"
-                        style={modalStyles.input}
-                        value={address}
-                        onChangeText={setAddress}
-                    />
-                    <PaperText style={modalStyles.label}>Brokerage</PaperText>
-                    <PaperTextInput
-                        mode="outlined"
-                        style={modalStyles.input}
-                        value={brokerage}
-                        onChangeText={setBrokerage}
-                    />
-                    <PaperText style={modalStyles.label}>Notes</PaperText>
-                    <PaperTextInput
-                        mode="outlined"
-                        multiline
-                        numberOfLines={5}
-                        style={[modalStyles.input, { height: scale(120), textAlignVertical: 'top' }]}
-                        value={notes}
-                        theme={{roundness: 24} }
-                        onChangeText={setNotes}
-                    />
+                {/* Name */}
+                <PaperText style={modalStyles.label}>Name</PaperText>
+                <PaperTextInput
+                    mode="outlined"
+                    style={modalStyles.input}
+                    value={name}
+                    onChangeText={setName}
+                />
 
-                    <PaperText style={modalStyles.label}>Original Contact</PaperText>
-                    <TouchableRipple style={modalStyles.datePickerButton} onPress={() => setShowDatePicker(true)}>
-                        <PaperText>{originalContact.toLocaleDateString()}</PaperText>
-                    </TouchableRipple>
-                    {showDatePicker && (
-                        <DateTimePicker
-                            value={originalContact}
-                            mode="date"
-                            display="default"
-                            onChange={(event, selectedDate) => {
-                                setShowDatePicker(false);
-                                if (selectedDate) setOriginalContact(selectedDate);
-                            }}
-                        />
-                    )}
+                {/* Phone */}
+                <PaperText style={modalStyles.label}>Phone</PaperText>
+                <PaperTextInput
+                    mode="outlined"
+                    style={modalStyles.input}
+                    value={phoneNumber}
+                    onChangeText={setPhoneNumber}
+                    keyboardType="phone-pad"
+                />
 
-                    <PaperButton mode="contained" onPress={handleSave} style={modalStyles.modalButton}>
-                        Save Changes
-                    </PaperButton>
-                    <PaperButton mode="contained" onPress={onDismiss} style={modalStyles.modalButton}>
-                        Cancel
-                    </PaperButton>
-                </Surface>
+                {/* Email */}
+                <PaperText style={modalStyles.label}>Email</PaperText>
+                <PaperTextInput
+                    mode="outlined"
+                    style={modalStyles.input}
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                />
+
+                {/* Address */}
+                <PaperText style={modalStyles.label}>Address</PaperText>
+                <PaperTextInput
+                    mode="outlined"
+                    style={modalStyles.input}
+                    value={address}
+                    onChangeText={setAddress}
+                />
+
+                {/* Brokerage */}
+                <PaperText style={modalStyles.label}>Brokerage</PaperText>
+                <PaperTextInput
+                    mode="outlined"
+                    style={modalStyles.input}
+                    value={brokerage}
+                    onChangeText={setBrokerage}
+                />
+
+                {/* Notes */}
+                <PaperText style={modalStyles.label}>Notes</PaperText>
+                <PaperTextInput
+                    mode="outlined"
+                    multiline
+                    numberOfLines={5}
+                    style={[modalStyles.input, { height: scale(120), textAlignVertical: 'top' }]}
+                    theme={{ roundness: scale(24) }}
+                    value={notes}
+                    onChangeText={setNotes}
+                />
+
+                {/* Original Contact */}
+                <PaperText style={modalStyles.label}>Original Contact</PaperText>
+                <TouchableRipple
+                    style={modalStyles.datePickerButton}
+                    onPress={() => setShowDatePicker(true)}
+                >
+                    <PaperText>
+                        {originalContact.toLocaleDateString()}
+                    </PaperText>
+                </TouchableRipple>
+                {showDatePicker && (
+                    <DateTimePicker
+                        value={originalContact}
+                        mode="date"
+                        display="default"
+                        onChange={(_, d) => {
+                            setShowDatePicker(false);
+                            if (d) setOriginalContact(d);
+                        }}
+                    />
+                )}
+
+                <PaperButton
+                    mode="contained"
+                    onPress={handleSave}
+                    style={modalStyles.modalButton}
+                >
+                    Save Changes
+                </PaperButton>
+                <PaperButton
+                    mode="outlined"
+                    onPress={onDismiss}
+                    style={modalStyles.modalButton}
+                >
+                    Cancel
+                </PaperButton>
             </ScrollView>
         </PaperModal>
     );
 };
 
-// ---------- Main ContactsScreen Component ----------
+// ——————————————————————————————————————
+// Main ContactsScreen
 const ContactsScreen = () => {
     const { user } = useAuth();
     const [contacts, setContacts] = useState<any[]>([]);
@@ -350,30 +431,25 @@ const ContactsScreen = () => {
     const [error, setError] = useState<string | null>(null);
     const [selectedType, setSelectedType] = useState<string>('Prospect');
 
-    // ---------- Modal Visibility States ----------
     const [addClientModalVisible, setAddClientModalVisible] = useState(false);
     const [editClientModalVisible, setEditClientModalVisible] = useState(false);
     const [addAgentModalVisible, setAddAgentModalVisible] = useState(false);
     const [editAgentModalVisible, setEditAgentModalVisible] = useState(false);
 
-    // ---------- Selected Items for editing ----------
     const [selectedClient, setSelectedClient] = useState<any>(null);
     const [selectedAgent, setSelectedAgent] = useState<any>(null);
 
-    // For delete confirmation
     const [deleteModalVisible, setDeleteModalVisible] = useState(false);
     const [contactToDelete, setContactToDelete] = useState<any>(null);
 
-    // Snackbar for messages
     const [snackbarVisible, setSnackbarVisible] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
-
-    const showSnack = (message: string) => {
-        setSnackbarMessage(message);
+    const showSnack = (msg: string) => {
+        setSnackbarMessage(msg);
         setSnackbarVisible(true);
     };
 
-    // ---------- Data Fetching ----------
+    // Fetch contacts
     useEffect(() => {
         const fetchContacts = async () => {
             if (!user) {
@@ -384,12 +460,10 @@ const ContactsScreen = () => {
             setLoading(true);
 
             if (selectedType === 'Agent') {
-                // Fetch agents
                 const { data, error } = await supabase.rpc('get_agents_by_user', { uid: user.id });
                 if (error) setError(error.message);
                 else setContacts(data);
             } else {
-                // Fetch clients (Prospect or SOI)
                 const { data, error } = await supabase.rpc('get_clients_by_client_type', {
                     uid: user.id,
                     client_type_name: selectedType,
@@ -397,6 +471,7 @@ const ContactsScreen = () => {
                 if (error) setError(error.message);
                 else setContacts(data);
             }
+
             setLoading(false);
         };
         fetchContacts();
@@ -405,7 +480,6 @@ const ContactsScreen = () => {
     const refreshContacts = async () => {
         if (!user) return;
         setLoading(true);
-
         if (selectedType === 'Agent') {
             const { data, error } = await supabase.rpc('get_agents_by_user', { uid: user.id });
             if (error) setError(error.message);
@@ -421,174 +495,111 @@ const ContactsScreen = () => {
         setLoading(false);
     };
 
-    // ---------- Editing Handlers ----------
-    const handleClientEdit = (client: any) => {
-        setSelectedClient(client);
-        setEditClientModalVisible(true);
-    };
+    // Handlers...
+    const handleClientEdit = (c: any) => { setSelectedClient(c); setEditClientModalVisible(true); };
+    const handleAgentEdit = (a: any) => { setSelectedAgent(a); setEditAgentModalVisible(true); };
 
-    const handleAgentEdit = (agent: any) => {
-        setSelectedAgent(agent);
-        setEditAgentModalVisible(true);
-    };
-
-    // ---------- Adding a client (Prospect or SOI) ----------
-    const handleAddClient = async (contactData: any) => {
-        if (!user) {
-            showSnack('User not logged in');
-            return;
-        }
-        if (!contactData.first_name.trim()) {
-            showSnack('First name is required');
-            return;
-        }
+    const handleAddClient = async (data: any) => {
+        if (!user) return showSnack('User not logged in');
+        if (!data.first_name.trim()) return showSnack('First name is required');
         try {
             const payload: any = {
                 user_id: user.id,
-                first_name: contactData.first_name,
-                last_name: contactData.last_name || null,
-                email: contactData.email || null,
-                phone_number: contactData.phone_number || null,
-                address: contactData.address || null,
-                prospect_note: contactData.prospect_note || '',
+                first_name: data.first_name,
+                last_name: data.last_name || null,
+                email: data.email || null,
+                phone_number: data.phone_number || null,
+                address: data.address || null,
+                prospect_note: data.prospect_note || '',
                 created_at: new Date().toISOString(),
             };
-            if (selectedType === 'Prospect') {
-                payload.original_contact = contactData.original_contact;
-            }
-
-            const { data, error } = await supabase
-                .from('clients')
-                .insert([payload])
-                .select();
-
-            if (error) {
-                throw new Error(error.message);
-            }
-            if (!data || data.length === 0) {
-                throw new Error('No client was inserted');
-            }
-
-            const newClient = data[0];
-            const clientTypeId = (selectedType === 'Prospect') ? 2 : 1;
-
-            const { error: cctError } = await supabase
+            if (selectedType === 'Prospect') payload.original_contact = data.original_contact;
+            const { data: inserted, error } = await supabase.from('clients').insert([payload]).select();
+            if (error) throw new Error(error.message);
+            if (!inserted?.length) throw new Error('No client inserted');
+            const newClient = inserted[0];
+            const typeId = selectedType === 'Prospect' ? 2 : 1;
+            const { error: cctErr } = await supabase
                 .from('client_client_types')
-                .insert([{ client_id: newClient.client_id, client_type_id: clientTypeId }]);
-
-            if (cctError) {
-                throw new Error(cctError.message);
-            }
-
+                .insert([{ client_id: newClient.client_id, client_type_id: typeId }]);
+            if (cctErr) throw new Error(cctErr.message);
             showSnack('Contact added successfully');
             setAddClientModalVisible(false);
             refreshContacts();
-        } catch (err: any) {
-            showSnack(`Error adding contact: ${err.message}`);
+        } catch (e: any) {
+            showSnack(`Error: ${e.message}`);
         }
     };
 
-    // ---------- Adding an agent ----------
-    const handleAddAgent = async (agentData: any) => {
-        if (!user) {
-            showSnack('User not logged in');
-            return;
-        }
-        if (!agentData.name.trim()) {
-            showSnack('Name is required');
-            return;
-        }
+    const handleAddAgent = async (data: any) => {
+        if (!user) return showSnack('User not logged in');
+        if (!data.name.trim()) return showSnack('Name is required');
         try {
             const payload = {
                 user_id: user.id,
-                name: agentData.name,
-                phone_number: agentData.phone_number || null,
-                email: agentData.email || null,
-                address: agentData.address || null,
-                brokerage: agentData.brokerage || null,
-                original_contact: agentData.original_contact,
-                notes: agentData.notes || '',
+                name: data.name,
+                phone_number: data.phone_number || null,
+                email: data.email || null,
+                address: data.address || null,
+                brokerage: data.brokerage || null,
+                original_contact: data.original_contact,
+                notes: data.notes || '',
             };
             const { error } = await supabase.from('agents').insert([payload]);
-            if (error) {
-                throw new Error(error.message);
-            }
+            if (error) throw new Error(error.message);
             showSnack('Agent added successfully');
             setAddAgentModalVisible(false);
             refreshContacts();
-        } catch (err: any) {
-            showSnack(`Error adding agent: ${err.message}`);
+        } catch (e: any) {
+            showSnack(`Error: ${e.message}`);
         }
     };
 
-    // ---------- Updating a client ----------
-    const handleUpdateClient = async (updatedData: any) => {
-        if (!user || !selectedClient) {
-            showSnack('No user or contact selected');
-            return;
-        }
-        if (!updatedData.first_name.trim()) {
-            showSnack('First name is required');
-            return;
-        }
+    const handleUpdateClient = async (data: any) => {
+        if (!user || !selectedClient) return showSnack('No contact selected');
+        if (!data.first_name.trim()) return showSnack('First name is required');
         try {
             const { error } = await supabase
                 .from('clients')
-                .update(updatedData)
+                .update(data)
                 .eq('client_id', selectedClient.client_id);
-            if (error) {
-                throw new Error(error.message);
-            }
-            showSnack('Contact updated successfully');
+            if (error) throw new Error(error.message);
+            showSnack('Contact updated');
             setEditClientModalVisible(false);
             setSelectedClient(null);
             refreshContacts();
-        } catch (err: any) {
-            showSnack(`Error updating contact: ${err.message}`);
+        } catch (e: any) {
+            showSnack(`Error: ${e.message}`);
         }
     };
 
-    // ---------- Updating an agent ----------
-    const handleUpdateAgent = async (updatedData: any) => {
-        if (!user || !selectedAgent) {
-            showSnack('No user or agent selected');
-            return;
-        }
-        if (!updatedData.name.trim()) {
-            showSnack('Name is required');
-            return;
-        }
+    const handleUpdateAgent = async (data: any) => {
+        if (!user || !selectedAgent) return showSnack('No agent selected');
+        if (!data.name.trim()) return showSnack('Name is required');
         try {
             const { error } = await supabase
                 .from('agent_contacts')
-                .update(updatedData)
+                .update(data)
                 .eq('id', selectedAgent.id);
-            if (error) {
-                throw new Error(error.message);
-            }
-            showSnack('Agent updated successfully');
+            if (error) throw new Error(error.message);
+            showSnack('Agent updated');
             setEditAgentModalVisible(false);
             setSelectedAgent(null);
             refreshContacts();
-        } catch (err: any) {
-            showSnack(`Error updating agent: ${err.message}`);
+        } catch (e: any) {
+            showSnack(`Error: ${e.message}`);
         }
     };
 
-    // ---------- Delete Handlers ----------
     const confirmDelete = (item: any) => {
         setContactToDelete(item);
         setDeleteModalVisible(true);
     };
-
     const handleDeleteConfirm = async () => {
-        if (!contactToDelete || !user) return;
+        if (!user || !contactToDelete) return;
         try {
             if (selectedType === 'Agent') {
-                const { error } = await supabase
-                    .from('agents')
-                    .delete()
-                    .eq('id', contactToDelete.id);
+                const { error } = await supabase.from('agents').delete().eq('id', contactToDelete.id);
                 if (error) throw new Error(error.message);
             } else {
                 const { error } = await supabase
@@ -597,21 +608,19 @@ const ContactsScreen = () => {
                     .eq('client_id', contactToDelete.client_id);
                 if (error) throw new Error(error.message);
             }
-            showSnack('Contact deleted successfully');
-        } catch (err: any) {
-            showSnack(`Error deleting contact: ${err.message}`);
+            showSnack('Deleted successfully');
+            refreshContacts();
+        } catch (e: any) {
+            showSnack(`Error: ${e.message}`);
         }
         setDeleteModalVisible(false);
         setContactToDelete(null);
-        refreshContacts();
     };
-
     const handleDeleteCancel = () => {
         setDeleteModalVisible(false);
         setContactToDelete(null);
     };
 
-    // ---------- Rendering Items ----------
     const renderItem = ({ item }: { item: any }) => {
         if (selectedType === 'Agent') {
             return (
@@ -672,17 +681,11 @@ const ContactsScreen = () => {
         }
     };
 
-    const addButtonText =
-        selectedType === 'Agent'
-            ? 'Add Agent'
-            : selectedType === 'SOI'
-                ? 'Add SOI'
-                : 'Add Prospect';
-
+    // Loading / error
     if (loading) {
         return (
             <Surface style={styles.center}>
-                <ActivityIndicator animating={true} size="large" />
+                <ActivityIndicator animating size="large" />
             </Surface>
         );
     }
@@ -694,129 +697,195 @@ const ContactsScreen = () => {
         );
     }
 
+    // ——————————————————————————————————————
     return (
-        <Surface style={styles.container}>
-            <PopoverTooltip
-                tooltipText={
-                    "Welcome to your Contacts Page! Here you can manage your contacts, and filter them  based on category."
-                }
-            />
-            <PaperText style={styles.header}>Contacts Page</PaperText>
-            <Surface style={styles.pickerContainer}>
-                <Picker
-                    selectedValue={selectedType}
-                    onValueChange={(itemValue) => setSelectedType(itemValue)}
-                    style={styles.picker}
-                    mode="dialog"
-                >
-                    <Picker.Item label="Prospect" value="Prospect" />
-                    <Picker.Item label="SOI" value="SOI" />
-                    <Picker.Item label="Agent" value="Agent" />
-                </Picker>
-            </Surface>
+        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+            <View style={styles.container}>
+                <PopoverTooltip tooltipText="Welcome to your Contacts Page! Manage and filter your contacts here." />
+                <PaperText style={styles.header}>Contacts Page</PaperText>
 
-            <FlatList
-                data={contacts}
-                keyExtractor={(item) => (item.client_id ? item.client_id.toString() : item.id.toString())}
-                renderItem={renderItem}
-                contentContainerStyle={styles.listContent}
-            />
-
-            <PaperButton
-                mode="contained"
-                onPress={() => {
-                    selectedType === 'Agent'
-                        ? setAddAgentModalVisible(true)
-                        : setAddClientModalVisible(true);
-                }}
-                style={styles.addButton}
-            >
-                {addButtonText}
-            </PaperButton>
-
-            <Portal>
-                <ContactModal
-                    visible={addClientModalVisible}
-                    onDismiss={() => setAddClientModalVisible(false)}
-                    title={selectedType === 'SOI' ? 'Add SOI' : 'Add Prospect'}
-                    showOriginalContact={selectedType === 'Prospect'}
-                    onSave={handleAddClient}
-                />
-
-                <ContactModal
-                    visible={editClientModalVisible}
-                    onDismiss={() => setEditClientModalVisible(false)}
-                    initialContact={selectedClient}
-                    title={selectedType === 'SOI' ? 'Edit SOI' : 'Edit Prospect'}
-                    showOriginalContact={selectedType === 'Prospect'}
-                    onSave={handleUpdateClient}
-                />
-
-                <AgentModal
-                    visible={addAgentModalVisible}
-                    onDismiss={() => setAddAgentModalVisible(false)}
-                    title="Add Agent"
-                    onSave={handleAddAgent}
-                />
-
-                <AgentModal
-                    visible={editAgentModalVisible}
-                    onDismiss={() => setEditAgentModalVisible(false)}
-                    initialAgent={selectedAgent}
-                    title="Edit Agent"
-                    onSave={handleUpdateAgent}
-                />
-
-                <PaperModal
-                    visible={deleteModalVisible}
-                    onDismiss={handleDeleteCancel}
-                    contentContainerStyle={modalStyles.modalContent}
-                >
-                    <Surface style={modalStyles.modalInner}>
-                        <PaperText style={modalStyles.modalHeader}>
-                            Are you sure you want to delete this contact?
-                        </PaperText>
-                        <PaperButton
-                            mode="contained"
-                            onPress={handleDeleteConfirm}
-                            style={modalStyles.modalButton}
+                {/* Top picker, styled like Pipeline’s modal picker: */}
+                <Surface style={styles.pickerContainer}>
+                    <View style={styles.pickerWrapper}>
+                        <Picker
+                            selectedValue={selectedType}
+                            onValueChange={setSelectedType}
+                            mode="dialog"
+                            style={styles.picker}
                         >
-                            Yes
-                        </PaperButton>
-                        <PaperButton
-                            mode="contained"
-                            onPress={handleDeleteCancel}
-                            style={modalStyles.modalButton}
+                            <Picker.Item label="Prospect" value="Prospect" />
+                            <Picker.Item label="SOI" value="SOI" />
+                            <Picker.Item label="Agent" value="Agent" />
+                        </Picker>
+                    </View>
+                </Surface>
+
+                {/*Your list of contacts */}
+                <FlatList
+                    data={contacts}
+                    keyExtractor={item =>
+                        item.client_id ? item.client_id.toString() : item.id.toString()
+                    }
+                    renderItem={renderItem}
+                    contentContainerStyle={styles.listContent}
+                />
+
+                {/* Floating “Add” button, same positioning as Pipeline */}
+                <PaperButton
+                    mode="contained"
+                    onPress={() =>
+                        selectedType === 'Agent'
+                            ? setAddAgentModalVisible(true)
+                            : setAddClientModalVisible(true)
+                    }
+                    style={styles.addButton}
+                >
+                    {selectedType === 'Agent'
+                        ? 'Add Agent'
+                        : selectedType === 'SOI'
+                            ? 'Add SOI'
+                            : 'Add Prospect'}
+                </PaperButton>
+
+                <Portal>
+                    {/* Add/Edit modals */}
+                    <ContactModal
+                        visible={addClientModalVisible}
+                        onDismiss={() => setAddClientModalVisible(false)}
+                        title={selectedType === 'SOI' ? 'Add SOI' : 'Add Prospect'}
+                        showOriginalContact={selectedType === 'Prospect'}
+                        onSave={handleAddClient}
+                    />
+                    <ContactModal
+                        visible={editClientModalVisible}
+                        onDismiss={() => setEditClientModalVisible(false)}
+                        initialContact={selectedClient}
+                        title={selectedType === 'SOI' ? 'Edit SOI' : 'Edit Prospect'}
+                        showOriginalContact={selectedType === 'Prospect'}
+                        onSave={handleUpdateClient}
+                    />
+                    <AgentModal
+                        visible={addAgentModalVisible}
+                        onDismiss={() => setAddAgentModalVisible(false)}
+                        title="Add Agent"
+                        onSave={handleAddAgent}
+                    />
+                    <AgentModal
+                        visible={editAgentModalVisible}
+                        onDismiss={() => setEditAgentModalVisible(false)}
+                        initialAgent={selectedAgent}
+                        title="Edit Agent"
+                        onSave={handleUpdateAgent}
+                    />
+
+                    {/* Delete confirmation */}
+                    <PaperModal
+                        visible={deleteModalVisible}
+                        onDismiss={handleDeleteCancel}
+                        contentContainerStyle={modalStyles.modalContent}
+                    >
+                        <ScrollView
+                            style={{ flex: 1 }}
+                            contentContainerStyle={modalStyles.scrollContent}
                         >
-                            No
-                        </PaperButton>
-                    </Surface>
-                </PaperModal>
+                            <PaperText style={modalStyles.modalHeader}>
+                                Are you sure you want to delete this contact?
+                            </PaperText>
+                            <PaperButton
+                                mode="contained"
+                                onPress={handleDeleteConfirm}
+                                style={modalStyles.modalButton}
+                            >
+                                Yes
+                            </PaperButton>
+                            <PaperButton
+                                mode="outlined"
+                                onPress={handleDeleteCancel}
+                                style={modalStyles.modalButton}
+                            >
+                                No
+                            </PaperButton>
+                        </ScrollView>
+                    </PaperModal>
+
+                    {/* Snackbar */}
+                    <Snackbar
+                        visible={snackbarVisible}
+                        onDismiss={() => setSnackbarVisible(false)}
+                        duration={3000}
+                        action={{ label: 'OK', onPress: () => setSnackbarVisible(false) }}
+                    >
+                        {snackbarMessage}
+                    </Snackbar>
+                </Portal>
 
                 <Snackbar
                     visible={snackbarVisible}
                     onDismiss={() => setSnackbarVisible(false)}
                     duration={3000}
-                    action={{
-                        label: 'OK',
-                        onPress: () => setSnackbarVisible(false),
-                    }}
+                    action={{ label: 'OK', onPress: () => setSnackbarVisible(false) }}
                 >
                     {snackbarMessage}
                 </Snackbar>
-            </Portal>
-
-        </Surface>
+            </View>
+        </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: scale(16) },
+    container: { flex: 1, padding: scale(16), marginTop: -50 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     header: { fontSize: scale(24), fontWeight: 'bold', marginBottom: scale(10), textAlign: 'center' },
-    pickerContainer: { borderWidth: scale(1), borderColor: '#ccc', borderRadius: scale(16), overflow: 'hidden', marginBottom: scale(10), width: '100%' },
-    picker: { width: '100%', height: scale(60), backgroundColor: '#fff' },
-    listContent: { paddingBottom: scale(16) },
+    safeArea: {
+        flex: 1,
+        backgroundColor: '#fff', // or your preferred background color
+    },
+    listContainer: {
+        flex: 1,
+        marginBottom: scale(80), // Space for fixed button
+    },
+    buttonContainer: {
+        position: 'absolute',
+        bottom: scale(20),
+        left: scale(16),
+        right: scale(16),
+        zIndex: 1, // Ensure button stays above other content
+    },
+    addButton: {
+        width: '100%',
+        elevation: 4, // Add shadow on Android
+        shadowColor: '#000', // Add shadow on iOS
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+    },
+    // Top picker
+    pickerContainer: {
+        borderWidth: scale(1),
+        borderColor: '#ccc',
+        borderRadius: scale(16),
+        overflow: 'hidden',
+        marginBottom: scale(10),
+        width: '100%',
+    },
+    pickerWrapper: {
+        width: '100%',
+        height: VISIBLE_HEIGHT,
+        overflow: 'hidden',
+        justifyContent: 'center',
+        backgroundColor: '#fff',
+    },
+    contentContainer: {
+        flex: 1,
+        position: 'relative', // Needed for absolute positioning of button container
+    },
+    listContent: {
+        paddingBottom: scale(80), // Add padding to prevent items from being hidden behind button
+    },
+    picker: {
+        width: '100%',
+        height: FULL_WHEEL,
+    },
     itemContainer: {
         position: 'relative',
         borderWidth: scale(1),
@@ -828,12 +897,7 @@ const styles = StyleSheet.create({
     },
     name: { fontSize: scale(18), fontWeight: '600' },
     createdAt: { fontSize: scale(12), color: '#555', marginTop: scale(4) },
-    addButton: { marginTop: scale(16), alignSelf: 'center', width: '70%' },
-    deleteIcon: {
-        position: 'absolute',
-        bottom: scale(8),
-        right: scale(8),
-    },
+    deleteIcon: { position: 'absolute', bottom: scale(8), right: scale(8) },
 });
 
 const modalStyles = StyleSheet.create({
@@ -841,15 +905,19 @@ const modalStyles = StyleSheet.create({
         backgroundColor: '#fff',
         padding: scale(20),
         borderRadius: scale(8),
-        width: '90%',
-        maxHeight: '80%',
         alignSelf: 'center',
+        width: '90%',
+        height: '80%',
     },
-    modalInner: {
-        backgroundColor: '#fff',
-        paddingRight: scale(10),
+    scrollContent: {
+        paddingBottom: scale(20),
     },
-    modalHeader: { fontSize: scale(20), fontWeight: 'bold', marginBottom: scale(12), textAlign: 'center' },
+    modalHeader: {
+        fontSize: scale(20),
+        fontWeight: 'bold',
+        marginBottom: scale(12),
+        textAlign: 'center',
+    },
     label: { fontWeight: '600', marginVertical: scale(4) },
     input: { marginBottom: scale(12) },
     datePickerButton: {
@@ -864,10 +932,9 @@ const modalStyles = StyleSheet.create({
     },
     modalButton: {
         marginVertical: scale(6),
-        width: '100%', // more room for text
         alignSelf: 'center',
+        width: '100%',
     },
-
 });
 
 export default ContactsScreen;

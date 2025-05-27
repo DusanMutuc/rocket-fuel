@@ -5,7 +5,8 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Client } from '../types/Client';
 import PopoverTooltip from '../components/PopoverTooltip';
-
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Platform } from 'react-native';
 import {
     ActivityIndicator,
     Button as PaperButton,
@@ -75,7 +76,7 @@ const EditPipelineClientModal = ({
             onDismiss={onDismiss}
             contentContainerStyle={modalStyles.modalContent}
         >
-            <ScrollView contentContainerStyle={{ paddingRight: scale(16) }}>
+            <ScrollView contentContainerStyle={modalStyles.scrollContent}>
                 <PaperText style={modalStyles.modalHeader}>Edit Pipeline Client</PaperText>
 
                 <PaperText style={modalStyles.label}>First Name</PaperText>
@@ -96,6 +97,7 @@ const EditPipelineClientModal = ({
 
                 <PaperText style={modalStyles.label}>Temperature</PaperText>
                 <Surface style={modalStyles.pickerContainer}>
+                    <View style={styles.pickerWrapper}>
                     <Picker
                         selectedValue={temperature}
                         onValueChange={(value) => setTemperature(value)}
@@ -105,13 +107,14 @@ const EditPipelineClientModal = ({
                         <Picker.Item label="Lukewarm" value="lukewarm" />
                         <Picker.Item label="Warm" value="warm" />
                         <Picker.Item label="Hot" value="hot" />
-                    </Picker>
+                        </Picker>
+                    </View>
                 </Surface>
 
                 <PaperText style={modalStyles.label}>Pipeline Note</PaperText>
                 <PaperTextInput
                     mode="outlined"
-                    style={[modalStyles.input, { height: scale(120)}]}
+                    style={[modalStyles.input, { height: scale(120) }]}
                     multiline
                     theme={{ roundness: scale(24) }}
                     numberOfLines={5}
@@ -137,7 +140,7 @@ const EditPipelineClientModal = ({
                     Save Changes
                 </PaperButton>
                 <PaperButton
-                    mode="contained"
+                    mode="outlined"
                     onPress={onDismiss}
                     style={modalStyles.modalButton}
                 >
@@ -147,7 +150,6 @@ const EditPipelineClientModal = ({
         </PaperModal>
     );
 };
-
 
 // ---------- Main PipelineScreen Component ----------
 const PipelineScreen = () => {
@@ -345,82 +347,266 @@ const PipelineScreen = () => {
     if (error) return <Surface style={styles.center}><PaperText>Error: {error}</PaperText></Surface>;
 
     return (
-        <Surface style={styles.container}>
-            <PopoverTooltip tooltipText="Welcome to your Pipeline Contacts screen! Here you can manage your pipeline contacts and add prospects to the pipeline." />
-            <PaperText style={styles.header}>Pipeline Contacts</PaperText>
-            <FlatList
-                data={pipelineClients}
-                keyExtractor={item => item.client_id}
-                renderItem={renderPipelineItem}
-                contentContainerStyle={styles.listContent}
-            />
-            <PaperButton mode="contained" onPress={() => { setProspectModalVisible(true); fetchProspects(); }} style={styles.addButton}>
-                Add Prospect to Pipeline
-            </PaperButton>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }} edges={['top', 'left', 'right']}>
+            <View style={styles.container}>
+                <PopoverTooltip tooltipText="Welcome to your Pipeline Contacts screen! Here you can manage your pipeline contacts and add prospects to the pipeline." />
+                <PaperText style={styles.header}>Pipeline Contacts</PaperText>
 
-            <Portal>
-                {/* Prospect Modal */}
-                <PaperModal visible={prospectModalVisible} onDismiss={() => setProspectModalVisible(false)} contentContainerStyle={styles.modalContent}>
-                    <PaperText style={styles.modalHeader}>Select a Prospect</PaperText>
-                    <FlatList data={prospects} keyExtractor={item => item.client_id} renderItem={renderProspectItem} contentContainerStyle={styles.listContent} />
-                    <PaperButton mode="contained" onPress={() => setProspectModalVisible(false)} style={styles.closeButton}>Close</PaperButton>
-                </PaperModal>
-                {/* Edit Client Modal */}
-                <EditPipelineClientModal
-                    visible={editModalVisible}
-                    onDismiss={() => setEditModalVisible(false)}
-                    client={selectedClient}
-                    onSave={handleUpdateClient}
+                <FlatList
+                    data={pipelineClients}
+                    keyExtractor={item => item.client_id}
+                    renderItem={renderPipelineItem}
+                    contentContainerStyle={styles.listContent}
                 />
-                {/* Remove Confirmation */}
-                <PaperModal visible={removeModalVisible} onDismiss={handleRemoveCancel} contentContainerStyle={styles.modalContent}>
-                    <Surface style={styles.removeModalInner}>
-                        <PaperText style={styles.modalHeader}>Remove this client from the pipeline?</PaperText>
-                        <PaperButton mode="contained" onPress={handleRemoveConfirm} style={styles.modalButton}>Yes</PaperButton>
-                        <PaperButton mode="contained" onPress={handleRemoveCancel} style={styles.modalButton}>No</PaperButton>
-                    </Surface>
-                </PaperModal>
-            </Portal>
 
-            <Snackbar visible={snackbarVisible} onDismiss={() => setSnackbarVisible(false)} duration={3000} action={{ label: 'OK', onPress: () => setSnackbarVisible(false) }}>{snackbarMessage}</Snackbar>
-        </Surface>
+                <PaperButton
+                    mode="contained"
+                    onPress={() => { setProspectModalVisible(true); fetchProspects(); }}
+                    style={styles.addButton}
+                >
+                    Add Prospect to Pipeline
+                </PaperButton>
+
+                <Portal>
+                    {/* Prospect Modal */}
+                    <PaperModal
+                        visible={prospectModalVisible}
+                        onDismiss={() => setProspectModalVisible(false)}
+                        contentContainerStyle={styles.modalContent}
+                    >
+                        <View style={{ flex: 1 }}>
+                            <PaperText style={styles.modalHeader}>Select a Prospect</PaperText>
+                            <FlatList
+                                data={prospects}
+                                keyExtractor={item => item.client_id}
+                                renderItem={renderProspectItem}
+                                contentContainerStyle={styles.listContent}
+                            />
+                            <PaperButton
+                                mode="outlined"
+                                onPress={() => setProspectModalVisible(false)}
+                                style={styles.closeButton}
+                            >
+                                Close
+                            </PaperButton>
+                        </View>
+                    </PaperModal>
+
+                    {/* Edit Client Modal */}
+                    <EditPipelineClientModal
+                        visible={editModalVisible}
+                        onDismiss={() => setEditModalVisible(false)}
+                        client={selectedClient}
+                        onSave={handleUpdateClient}
+                    />
+
+                    {/* Remove Confirmation */}
+                    <PaperModal
+                        visible={removeModalVisible}
+                        onDismiss={handleRemoveCancel}
+                        contentContainerStyle={styles.modalContent}
+                    >
+                        <View style={styles.removeModalInner}>
+                            <PaperText style={styles.modalHeader}>Remove this client from the pipeline?</PaperText>
+                            <PaperButton mode="contained" onPress={handleRemoveConfirm} style={styles.modalButton}>Yes</PaperButton>
+                            <PaperButton mode="outlined" onPress={handleRemoveCancel} style={styles.modalButton}>No</PaperButton>
+                        </View>
+                    </PaperModal>
+                </Portal>
+
+                <Snackbar
+                    visible={snackbarVisible}
+                    onDismiss={() => setSnackbarVisible(false)}
+                    duration={3000}
+                    action={{ label: 'OK', onPress: () => setSnackbarVisible(false) }}
+                >
+                    {snackbarMessage}
+                </Snackbar>
+            </View>
+        </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: scale(16) },
-    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    header: { fontSize: scale(24), fontWeight: 'bold', marginBottom: scale(16), textAlign: 'center' },
-    listContent: { paddingBottom: scale(16) },
-    itemContainer: { position: 'relative', borderWidth: scale(1), borderColor: '#ccc', borderRadius: scale(16), padding: scale(12), marginBottom: scale(12) },
-    prospects: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: scale(3), borderColor: '#505050', borderWidth: scale(1), marginTop: scale(16), borderRadius: scale(60), backgroundColor: '#f6f6f6' },
-    name: { fontSize: scale(18), fontWeight: '600' },
-    nameProspect: { fontSize: scale(18), fontWeight: '600', marginLeft: scale(10) },
-    temperature: { fontSize: scale(14), color: '#555' },
-    note: { fontSize: scale(14), color: '#555' },
-    createdAt: { fontSize: scale(12), color: '#555', marginTop: scale(4) },
-    deleteIcon: { position: 'absolute', bottom: scale(8), right: scale(8) },
-    addButton: { marginTop: scale(16), width: '70%', alignContent: 'center', alignSelf: 'center' },
-    closeButton: { marginTop: scale(12) },
-    modalContent: { backgroundColor: '#fff', padding: scale(10), margin: scale(10), borderRadius: scale(20), maxHeight: '80%' },
-    modalHeader: { fontSize: scale(20), fontWeight: 'bold', marginBottom: scale(12), textAlign: 'center' },
-    label: { fontWeight: '600', marginVertical: scale(4) },
-    input: { marginBottom: scale(12) },
-    pickerContainer: { borderWidth: scale(1), borderColor: '#6f6f6f', borderRadius: scale(30), overflow: 'hidden', marginBottom: scale(12) },
-    picker: { width: '100%', height: scale(50), backgroundColor: '#f6f6f6' },
-    modalButton: { marginVertical: scale(6), alignSelf: 'center' },
-    FAB: { marginHorizontal: scale(10), marginVertical: scale(3), color: '#f6f6f6', backgroundColor: '#c93332' },
-    removeModalInner: { justifyContent: 'center', alignItems: 'center' },
+    container: {
+        flex: 1,
+        padding: scale(16),
+        marginTop: -50
+    },
+    center: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    header: {
+        fontSize: scale(24),
+        fontWeight: 'bold',
+        marginBottom: scale(16),
+        textAlign: 'center',
+        marginTop: scale(8) // Add small top margin for header
+    },
+    listContent: {
+        paddingBottom: scale(80) // Give space for the button
+    },
+    itemContainer: {
+        position: 'relative',
+        borderWidth: scale(1),
+        borderColor: '#ccc',
+        borderRadius: scale(16),
+        padding: scale(12),
+        marginBottom: scale(12),
+        marginHorizontal: scale(4) // Add horizontal margin to cards
+    },
+    prospects: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: scale(3),
+        borderColor: '#505050',
+        borderWidth: scale(1),
+        marginTop: scale(16),
+        borderRadius: scale(60),
+        backgroundColor: '#f6f6f6'
+    },
+    name: {
+        fontSize: scale(18),
+        fontWeight: '600'
+    },
+    nameProspect: {
+        fontSize: scale(18),
+        fontWeight: '600',
+        marginLeft: scale(10)
+    },
+    temperature: {
+        fontSize: scale(14),
+        color: '#555'
+    },
+    note: {
+        fontSize: scale(14),
+        color: '#555'
+    },
+    createdAt: {
+        fontSize: scale(12),
+        color: '#555',
+        marginTop: scale(4)
+    },
+    deleteIcon: {
+        position: 'absolute',
+        bottom: scale(8),
+        right: scale(8)
+    },
+    addButton: {
+        position: 'absolute',
+        bottom: scale(20),
+        left: scale(16),
+        right: scale(16),
+        alignSelf: 'center'
+    },
+    closeButton: {
+        marginTop: scale(12),
+        marginBottom: scale(12)
+    },
+    // styles.modalContent  (used by your Prospect + Remove modals)
+    modalContent: {
+        backgroundColor: '#fff',
+        padding: scale(20),
+        borderRadius: scale(20),
+        // instead of margin+maxHeight...
+        alignSelf: 'center',        // horizontally center it
+        width: '90%',                // take 90% of screen width
+        height: '80%',               // take 80% of screen height
+    },
+
+    modalHeader: {
+        fontSize: scale(20),
+        fontWeight: 'bold',
+        marginBottom: scale(12),
+        textAlign: 'center'
+    },
+    label: {
+        fontWeight: '600',
+        marginVertical: scale(4)
+    },
+    input: {
+        marginBottom: scale(12)
+    },
+    pickerContainer: {
+        borderWidth: scale(1),
+        borderColor: '#6f6f6f',
+        borderRadius: scale(30),
+        overflow: 'hidden',
+        marginBottom: scale(12),
+    },
+    pickerWrapper: {
+        width: '100%',
+        height: scale(120),
+        overflow: 'hidden',          // *this* clips the oversized wheel
+        backgroundColor: '#f6f6f6',
+        color: '#f6f6f6',
+        borderRadius: scale(30),
+        borderWidth: scale(1),
+        borderColor: '#6f6f6f',
+        justifyContent: 'center',
+    },
+    modalButton: {
+        marginVertical: scale(6),
+        alignSelf: 'center'
+    },
+    FAB: {
+        marginHorizontal: scale(10),
+        marginVertical: scale(3),
+        color: '#f6f6f6',
+        backgroundColor: '#ADD8E6'
+    },
+    removeModalInner: {
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
 });
 
 const modalStyles = StyleSheet.create({
-    modalContent: { backgroundColor: '#fff', padding: scale(20), margin: scale(20), maxHeight: '80%', borderRadius: scale(30) },
-    modalHeader: { fontSize: scale(20), fontWeight: 'bold', marginBottom: scale(12), textAlign: 'center' },
-    label: { fontWeight: '600', marginVertical: scale(4) },
-    input: { marginBottom: scale(12) },
-    pickerContainer: {borderWidth: scale(1), borderColor: '#6f6f6f', borderRadius: scale(30), overflow: 'hidden', marginBottom: scale(12) },
-    picker: { width: '100%', height: scale(60), backgroundColor: '#f6f6f6' },
-    modalButton: { marginVertical: scale(6) },
+    // styles.modalContent  (used by your Prospect + Remove modals)
+    modalContent: {
+        backgroundColor: '#fff',
+        padding: scale(20),
+        borderRadius: scale(20),
+        // instead of margin+maxHeight...
+        alignSelf: 'center',        // horizontally center it
+        width: '90%',                // take 90% of screen width
+        height: '80%',               // take 80% of screen height
+    },
+
+    scrollContent: {
+        paddingBottom: scale(20)
+    },
+    modalHeader: {
+        fontSize: scale(20),
+        fontWeight: 'bold',
+        marginBottom: scale(12),
+        textAlign: 'center'
+    },
+    label: {
+        fontWeight: '600',
+        marginVertical: scale(4)
+    },
+    input: {
+        marginBottom: scale(12)
+    },
+    pickerContainer: {
+        borderWidth: scale(1),
+        borderColor: '#6f6f6f',
+        borderRadius: scale(30),
+        overflow: 'hidden',
+        marginBottom: scale(12)
+    },
+    picker: {
+        width: '100%',
+        height: Platform.OS === 'ios' ? scale(220) : scale(50),
+        backgroundColor: '#f6f6f6'
+    },
+    modalButton: {
+        marginVertical: scale(6)
+    },
 });
 
 export default PipelineScreen;
