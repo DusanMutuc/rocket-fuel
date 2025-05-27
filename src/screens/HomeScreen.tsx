@@ -304,7 +304,38 @@ const HomeScreen = () => {
                         style={styles.dialog}
                         theme={customComponentTheme}
                     >
-                        {/* ... (keep dialog content the same) ... */}
+                        <Dialog.Title>
+                            {currentWeek && selectedTaskType
+                                ? `Week ${currentWeekIndex + 1} ${formatTaskName(
+                                    selectedTaskType.name
+                                )}s Logs`
+                                : 'Logs'}
+                        </Dialog.Title>
+                        <Dialog.Content>
+                            <View style={styles.aggregateContainer}>
+                                <IconButton
+                                    icon="minus"
+                                    onPress={() =>
+                                        setNewWeeklyTotal(n => (n > 0 ? n - 1 : 0))
+                                    }
+                                    style={styles.iconButton}
+                                />
+                                <Text style={styles.aggregateDisplay}>
+                                    {newWeeklyTotal}
+                                </Text>
+                                <IconButton
+                                    icon="plus"
+                                    onPress={() => setNewWeeklyTotal(n => n + 1)}
+                                    style={styles.iconButton}
+                                />
+                            </View>
+                        </Dialog.Content>
+                        <Dialog.Actions style={styles.dialogActions}>
+                            <Button onPress={handleSaveAll}>Save</Button>
+                            <Button onPress={() => setModalVisible(false)}>
+                                Cancel
+                            </Button>
+                        </Dialog.Actions>
                     </Dialog>
                 </Portal>
 
