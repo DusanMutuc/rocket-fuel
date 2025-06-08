@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, ScrollView, View, Dimensions } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { FlatList, StyleSheet, ScrollView, View, Dimensions, Keyboard, KeyboardAvoidingView, TouchableWithoutFeedback } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,7 +21,7 @@ import {
     Snackbar,
     FAB,
 } from 'react-native-paper';
-
+import { findNodeHandle } from 'react-native';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const guidelineBaseWidth = 375;
 const scale = (size: number) => (SCREEN_WIDTH / guidelineBaseWidth) * size;
@@ -50,6 +50,12 @@ const EditPipelineClientModal = ({
     const [pipelineNote, setPipelineNote] = useState('');
     const [pipelineRevenue, setPipelineRevenue] = useState('');
 
+    const scrollRef = useRef<ScrollView>(null);
+    const firstNameRef = useRef<View>(null);
+    const lastNameRef = useRef<View>(null);
+    const noteRef = useRef<View>(null);
+    const revenueRef = useRef<View>(null);
+
     useEffect(() => {
         if (client) {
             setFirstName(client.first_name);
@@ -61,6 +67,7 @@ const EditPipelineClientModal = ({
     }, [client]);
 
     const handleSave = () => {
+        Keyboard.dismiss();
         onSave({
             first_name: firstName,
             last_name: lastName,
@@ -70,86 +77,122 @@ const EditPipelineClientModal = ({
         });
     };
 
+
+    const scrollToInput = (ref: React.RefObject<View>) => {
+        if (!ref.current || !scrollRef.current) return;
+        const nodeHandle = findNodeHandle(ref.current);
+        if (nodeHandle) {
+            scrollRef.current.scrollResponderScrollNativeHandleToKeyboard(
+                nodeHandle,
+                scale(240), // Adjust this offset if needed
+                true
+            );
+        }
+    };
+
+
     return (
         <PaperModal
             visible={visible}
             onDismiss={onDismiss}
             contentContainerStyle={modalStyles.modalContent}
         >
-            <ScrollView contentContainerStyle={modalStyles.scrollContent}>
-                <PaperText style={modalStyles.modalHeader}>Edit Pipeline Client</PaperText>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                style={{ flex: 1 }}
+                keyboardVerticalOffset={scale(60)}
+            >
+                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                    <ScrollView ref={scrollRef} contentContainerStyle={modalStyles.scrollContent}>
+                        <PaperText style={modalStyles.modalHeader}>Edit Pipeline Client</PaperText>
 
-                <PaperText style={modalStyles.label}>First Name</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    style={modalStyles.input}
-                    value={firstName}
-                    onChangeText={setFirstName}
-                />
+                        <PaperText style={modalStyles.label}>First Name</PaperText>
+                        <View ref={firstNameRef}>
+                            <PaperTextInput
+                                mode="outlined"
+                                style={modalStyles.input}
+                                value={firstName}
+                                onChangeText={setFirstName}
+                                onFocus={() => scrollToInput(firstNameRef)}
+                            />
+                        </View>
 
-                <PaperText style={modalStyles.label}>Last Name</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    style={modalStyles.input}
-                    value={lastName}
-                    onChangeText={setLastName}
-                />
+                        <PaperText style={modalStyles.label}>Last Name</PaperText>
+                        <View ref={lastNameRef}>
+                            <PaperTextInput
+                                mode="outlined"
+                                style={modalStyles.input}
+                                value={lastName}
+                                onChangeText={setLastName}
+                                onFocus={() => scrollToInput(lastNameRef)}
+                            />
+                        </View>
 
-                <PaperText style={modalStyles.label}>Temperature</PaperText>
-                <Surface style={modalStyles.pickerContainer}>
-                    <View style={styles.pickerWrapper}>
-                    <Picker
-                        selectedValue={temperature}
-                        onValueChange={(value) => setTemperature(value)}
-                        mode="dialog"
-                        style={modalStyles.picker}
-                    >
-                        <Picker.Item label="Lukewarm" value="lukewarm" />
-                        <Picker.Item label="Warm" value="warm" />
-                        <Picker.Item label="Hot" value="hot" />
-                        </Picker>
-                    </View>
-                </Surface>
+                        <PaperText style={modalStyles.label}>Temperature</PaperText>
+                        <Surface style={modalStyles.pickerContainer}>
+                            <View style={modalStyles.pickerWrapper}>
+                                <Picker
+                                    selectedValue={temperature}
+                                    onValueChange={(value) => setTemperature(value)}
+                                    mode="dialog"
+                                    style={modalStyles.picker}
+                                >
+                                    <Picker.Item label="Lukewarm" value="lukewarm" />
+                                    <Picker.Item label="Warm" value="warm" />
+                                    <Picker.Item label="Hot" value="hot" />
+                                </Picker>
+                            </View>
+                        </Surface>
 
-                <PaperText style={modalStyles.label}>Pipeline Note</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    style={[modalStyles.input, { height: scale(120) }]}
-                    multiline
-                    theme={{ roundness: scale(24) }}
-                    numberOfLines={5}
-                    value={pipelineNote}
-                    onChangeText={setPipelineNote}
-                />
+                        <PaperText style={modalStyles.label}>Pipeline Note</PaperText>
+                        <View ref={noteRef}>
+                            <PaperTextInput
+                                mode="outlined"
+                                style={[modalStyles.input, { height: scale(120) }]}
+                                multiline
+                                theme={{ roundness: scale(24) }}
+                                numberOfLines={5}
+                                value={pipelineNote}
+                                onChangeText={setPipelineNote}
+                                onFocus={() => scrollToInput(noteRef)}
+                            />
+                        </View>
 
-                <PaperText style={modalStyles.label}>Pipeline Revenue</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    style={modalStyles.input}
-                    value={pipelineRevenue}
-                    onChangeText={setPipelineRevenue}
-                    keyboardType="numeric"
-                    left={<PaperTextInput.Affix text="$" />}
-                />
+                        <PaperText style={modalStyles.label}>Pipeline Revenue</PaperText>
+                        <View ref={revenueRef}>
+                            <PaperTextInput
+                                mode="outlined"
+                                style={modalStyles.input}
+                                value={pipelineRevenue}
+                                onChangeText={setPipelineRevenue}
+                                keyboardType="numeric"
+                                left={<PaperTextInput.Affix text="$" />}
+                                onFocus={() => scrollToInput(revenueRef)}
+                            />
+                        </View>
 
-                <PaperButton
-                    mode="contained"
-                    onPress={handleSave}
-                    style={modalStyles.modalButton}
-                >
-                    Save Changes
-                </PaperButton>
-                <PaperButton
-                    mode="outlined"
-                    onPress={onDismiss}
-                    style={modalStyles.modalButton}
-                >
-                    Cancel
-                </PaperButton>
-            </ScrollView>
+                        <PaperButton
+                            mode="contained"
+                            onPress={handleSave}
+                            style={modalStyles.modalButton}
+                        >
+                            Save Changes
+                        </PaperButton>
+                        <PaperButton
+                            mode="outlined"
+                            onPress={onDismiss}
+                            style={modalStyles.modalButton}
+                        >
+                            Cancel
+                        </PaperButton>
+                    </ScrollView>
+                </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
         </PaperModal>
     );
 };
+
+
 
 // ---------- Main PipelineScreen Component ----------
 const PipelineScreen = () => {
@@ -598,6 +641,17 @@ const modalStyles = StyleSheet.create({
         borderRadius: scale(30),
         overflow: 'hidden',
         marginBottom: scale(12)
+    },
+    pickerWrapper: {
+        width: '100%',
+        height: scale(120),
+        overflow: 'hidden',          // *this* clips the oversized wheel
+        backgroundColor: '#f6f6f6',
+        color: '#f6f6f6',
+        borderRadius: scale(30),
+        borderWidth: scale(1),
+        borderColor: '#6f6f6f',
+        justifyContent: 'center',
     },
     picker: {
         width: '100%',

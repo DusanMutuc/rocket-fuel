@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import { useRef,useState, useEffect, useCallback } from 'react';
+import { KeyboardAvoidingView, ScrollView, TouchableWithoutFeedback, Keyboard, View, findNodeHandle } from 'react-native';
 import {
     FlatList,
     StyleSheet,
-    View,
-    ScrollView,
     Dimensions,
     Platform,
 } from 'react-native';
@@ -36,7 +35,7 @@ const scale = (size: number) => (SCREEN_WIDTH / guidelineBaseWidth) * size;
 const ROW_HEIGHT = scale(70);
 const VISIBLE_ROWS = 3;
 const FULL_WHEEL = ROW_HEIGHT * VISIBLE_ROWS; // e.g. 150
-const VISIBLE_HEIGHT = scale(80);             // e.g. 60
+const VISIBLE_HEIGHT = scale(100);             // e.g. 60
 
 // ——————————————————————————————————————
 // ContactModal (Prospect & SOI)
@@ -82,6 +81,27 @@ const ContactModal: React.FC<ContactModalProps> = ({
     const [originalContact, setOriginalContact] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
 
+    const scrollRef = useRef<ScrollView>(null);
+    const refs = {
+        first: useRef(null),
+        last: useRef(null),
+        email: useRef(null),
+        phone: useRef(null),
+        address: useRef(null),
+        note: useRef(null),
+    };
+
+    const scrollToInput = (ref: React.RefObject<View>) => {
+        const node = findNodeHandle(ref.current);
+        if (node && scrollRef.current) {
+            scrollRef.current.scrollResponderScrollNativeHandleToKeyboard(
+                node,
+                scale(240),
+                true
+            );
+        }
+    };
+
     useEffect(() => {
         if (initialContact) {
             setFirstName(initialContact.first_name);
@@ -106,7 +126,8 @@ const ContactModal: React.FC<ContactModalProps> = ({
         }
     }, [initialContact, visible]);
 
-    const handleSave = () =>
+    const handleSave = () => {
+        Keyboard.dismiss();
         onSave({
             first_name: firstName,
             last_name: lastName,
@@ -114,125 +135,121 @@ const ContactModal: React.FC<ContactModalProps> = ({
             phone_number: phoneNumber,
             address,
             prospect_note: prospectNote,
-            original_contact: showOriginalContact
-                ? originalContact.toISOString()
-                : undefined,
+            original_contact: showOriginalContact ? originalContact.toISOString() : undefined,
         });
+    };
 
     return (
-        <PaperModal
-            visible={visible}
-            onDismiss={onDismiss}
-            contentContainerStyle={modalStyles.modalContent}
-        >
-            <ScrollView
+        <PaperModal visible={visible} onDismiss={onDismiss} contentContainerStyle={modalStyles.modalContent}>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 style={{ flex: 1 }}
-                contentContainerStyle={modalStyles.scrollContent}
-                persistentScrollbar
-                showsVerticalScrollIndicator
+                keyboardVerticalOffset={scale(60)}
             >
-                <PaperText style={modalStyles.modalHeader}>{title}</PaperText>
+                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                    <ScrollView ref={scrollRef} contentContainerStyle={modalStyles.scrollContent}>
+                        <PaperText style={modalStyles.modalHeader}>{title}</PaperText>
 
-                {/* First Name */}
-                <PaperText style={modalStyles.label}>First Name</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    style={modalStyles.input}
-                    value={firstName}
-                    onChangeText={setFirstName}
-                />
-
-                {/* Last Name */}
-                <PaperText style={modalStyles.label}>Last Name</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    style={modalStyles.input}
-                    value={lastName}
-                    onChangeText={setLastName}
-                />
-
-                {/* Email */}
-                <PaperText style={modalStyles.label}>Email</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    style={modalStyles.input}
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                />
-
-                {/* Phone */}
-                <PaperText style={modalStyles.label}>Phone</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    style={modalStyles.input}
-                    value={phoneNumber}
-                    onChangeText={setPhoneNumber}
-                    keyboardType="phone-pad"
-                />
-
-                {/* Address */}
-                <PaperText style={modalStyles.label}>Address</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    style={modalStyles.input}
-                    value={address}
-                    onChangeText={setAddress}
-                />
-
-                {/* Note */}
-                <PaperText style={modalStyles.label}>Note</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    multiline
-                    numberOfLines={5}
-                    style={[modalStyles.input, { height: scale(120), textAlignVertical: 'top' }]}
-                    theme={{ roundness: scale(24) }}
-                    value={prospectNote}
-                    onChangeText={setProspectNote}
-                />
-
-                {/* Original Contact */}
-                {showOriginalContact && (
-                    <>
-                        <PaperText style={modalStyles.label}>Original Contact</PaperText>
-                        <TouchableRipple
-                            style={modalStyles.datePickerButton}
-                            onPress={() => setShowDatePicker(true)}
-                        >
-                            <PaperText>
-                                {originalContact.toLocaleDateString()}
-                            </PaperText>
-                        </TouchableRipple>
-                        {showDatePicker && (
-                            <DateTimePicker
-                                value={originalContact}
-                                mode="date"
-                                display="default"
-                                onChange={(_, d) => {
-                                    setShowDatePicker(false);
-                                    if (d) setOriginalContact(d);
-                                }}
+                        <PaperText style={modalStyles.label}>First Name</PaperText>
+                        <View ref={refs.first}>
+                            <PaperTextInput
+                                mode="outlined"
+                                style={modalStyles.input}
+                                value={firstName}
+                                onChangeText={setFirstName}
+                                onFocus={() => scrollToInput(refs.first)}
                             />
-                        )}
-                    </>
-                )}
+                        </View>
 
-                <PaperButton
-                    mode="contained"
-                    onPress={handleSave}
-                    style={modalStyles.modalButton}
-                >
-                    Save Changes
-                </PaperButton>
-                <PaperButton
-                    mode="outlined"
-                    onPress={onDismiss}
-                    style={modalStyles.modalButton}
-                >
-                    Cancel
-                </PaperButton>
-            </ScrollView>
+                        <PaperText style={modalStyles.label}>Last Name</PaperText>
+                        <View ref={refs.last}>
+                            <PaperTextInput
+                                mode="outlined"
+                                style={modalStyles.input}
+                                value={lastName}
+                                onChangeText={setLastName}
+                                onFocus={() => scrollToInput(refs.last)}
+                            />
+                        </View>
+
+                        <PaperText style={modalStyles.label}>Email</PaperText>
+                        <View ref={refs.email}>
+                            <PaperTextInput
+                                mode="outlined"
+                                style={modalStyles.input}
+                                value={email}
+                                keyboardType="email-address"
+                                onChangeText={setEmail}
+                                onFocus={() => scrollToInput(refs.email)}
+                            />
+                        </View>
+
+                        <PaperText style={modalStyles.label}>Phone</PaperText>
+                        <View ref={refs.phone}>
+                            <PaperTextInput
+                                mode="outlined"
+                                style={modalStyles.input}
+                                value={phoneNumber}
+                                keyboardType="phone-pad"
+                                onChangeText={setPhoneNumber}
+                                onFocus={() => scrollToInput(refs.phone)}
+                            />
+                        </View>
+
+                        <PaperText style={modalStyles.label}>Address</PaperText>
+                        <View ref={refs.address}>
+                            <PaperTextInput
+                                mode="outlined"
+                                style={modalStyles.input}
+                                value={address}
+                                onChangeText={setAddress}
+                                onFocus={() => scrollToInput(refs.address)}
+                            />
+                        </View>
+
+                        <PaperText style={modalStyles.label}>Note</PaperText>
+                        <View ref={refs.note}>
+                            <PaperTextInput
+                                mode="outlined"
+                                multiline
+                                numberOfLines={5}
+                                style={[modalStyles.input, { height: scale(120), textAlignVertical: 'top' }]}
+                                theme={{ roundness: scale(24) }}
+                                value={prospectNote}
+                                onChangeText={setProspectNote}
+                                onFocus={() => scrollToInput(refs.note)}
+                            />
+                        </View>
+
+                        {showOriginalContact && (
+                            <>
+                                <PaperText style={modalStyles.label}>Original Contact</PaperText>
+                                <TouchableRipple style={modalStyles.datePickerButton} onPress={() => setShowDatePicker(true)}>
+                                    <PaperText>{originalContact.toLocaleDateString()}</PaperText>
+                                </TouchableRipple>
+                                {showDatePicker && (
+                                    <DateTimePicker
+                                        value={originalContact}
+                                        mode="date"
+                                        display="default"
+                                        onChange={(_, d) => {
+                                            setShowDatePicker(false);
+                                            if (d) setOriginalContact(d);
+                                        }}
+                                    />
+                                )}
+                            </>
+                        )}
+
+                        <PaperButton mode="contained" onPress={handleSave} style={modalStyles.modalButton}>
+                            Save Changes
+                        </PaperButton>
+                        <PaperButton mode="outlined" onPress={onDismiss} style={modalStyles.modalButton}>
+                            Cancel
+                        </PaperButton>
+                    </ScrollView>
+                </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
         </PaperModal>
     );
 };
@@ -279,6 +296,27 @@ const AgentModal: React.FC<AgentModalProps> = ({
     const [originalContact, setOriginalContact] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
 
+    const scrollRef = useRef<ScrollView>(null);
+    const refs = {
+        name: useRef(null),
+        phone: useRef(null),
+        email: useRef(null),
+        address: useRef(null),
+        brokerage: useRef(null),
+        notes: useRef(null),
+    };
+
+    const scrollToInput = (ref: React.RefObject<View>) => {
+        const node = findNodeHandle(ref.current);
+        if (node && scrollRef.current) {
+            scrollRef.current.scrollResponderScrollNativeHandleToKeyboard(
+                node,
+                scale(240),
+                true
+            );
+        }
+    };
+
     useEffect(() => {
         if (initialAgent) {
             setName(initialAgent.name);
@@ -299,7 +337,8 @@ const AgentModal: React.FC<AgentModalProps> = ({
         }
     }, [initialAgent, visible]);
 
-    const handleSave = () =>
+    const handleSave = () => {
+        Keyboard.dismiss();
         onSave({
             name,
             phone_number: phoneNumber,
@@ -309,115 +348,118 @@ const AgentModal: React.FC<AgentModalProps> = ({
             notes,
             original_contact: originalContact.toISOString().split('T')[0],
         });
+    };
 
     return (
-        <PaperModal
-            visible={visible}
-            onDismiss={onDismiss}
-            contentContainerStyle={modalStyles.modalContent}
-        >
-            <ScrollView
+        <PaperModal visible={visible} onDismiss={onDismiss} contentContainerStyle={modalStyles.modalContent}>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 style={{ flex: 1 }}
-                contentContainerStyle={modalStyles.scrollContent}
+                keyboardVerticalOffset={scale(60)}
             >
-                <PaperText style={modalStyles.modalHeader}>{title}</PaperText>
+                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                    <ScrollView ref={scrollRef} contentContainerStyle={modalStyles.scrollContent}>
+                        <PaperText style={modalStyles.modalHeader}>{title}</PaperText>
 
-                {/* Name */}
-                <PaperText style={modalStyles.label}>Name</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    style={modalStyles.input}
-                    value={name}
-                    onChangeText={setName}
-                />
+                        <PaperText style={modalStyles.label}>Name</PaperText>
+                        <View ref={refs.name}>
+                            <PaperTextInput
+                                mode="outlined"
+                                style={modalStyles.input}
+                                value={name}
+                                onChangeText={setName}
+                                onFocus={() => scrollToInput(refs.name)}
+                            />
+                        </View>
 
-                {/* Phone */}
-                <PaperText style={modalStyles.label}>Phone</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    style={modalStyles.input}
-                    value={phoneNumber}
-                    onChangeText={setPhoneNumber}
-                    keyboardType="phone-pad"
-                />
+                        <PaperText style={modalStyles.label}>Phone</PaperText>
+                        <View ref={refs.phone}>
+                            <PaperTextInput
+                                mode="outlined"
+                                style={modalStyles.input}
+                                value={phoneNumber}
+                                onChangeText={setPhoneNumber}
+                                keyboardType="phone-pad"
+                                onFocus={() => scrollToInput(refs.phone)}
+                            />
+                        </View>
 
-                {/* Email */}
-                <PaperText style={modalStyles.label}>Email</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    style={modalStyles.input}
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                />
+                        <PaperText style={modalStyles.label}>Email</PaperText>
+                        <View ref={refs.email}>
+                            <PaperTextInput
+                                mode="outlined"
+                                style={modalStyles.input}
+                                value={email}
+                                onChangeText={setEmail}
+                                keyboardType="email-address"
+                                onFocus={() => scrollToInput(refs.email)}
+                            />
+                        </View>
 
-                {/* Address */}
-                <PaperText style={modalStyles.label}>Address</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    style={modalStyles.input}
-                    value={address}
-                    onChangeText={setAddress}
-                />
+                        <PaperText style={modalStyles.label}>Address</PaperText>
+                        <View ref={refs.address}>
+                            <PaperTextInput
+                                mode="outlined"
+                                style={modalStyles.input}
+                                value={address}
+                                onChangeText={setAddress}
+                                onFocus={() => scrollToInput(refs.address)}
+                            />
+                        </View>
 
-                {/* Brokerage */}
-                <PaperText style={modalStyles.label}>Brokerage</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    style={modalStyles.input}
-                    value={brokerage}
-                    onChangeText={setBrokerage}
-                />
+                        <PaperText style={modalStyles.label}>Brokerage</PaperText>
+                        <View ref={refs.brokerage}>
+                            <PaperTextInput
+                                mode="outlined"
+                                style={modalStyles.input}
+                                value={brokerage}
+                                onChangeText={setBrokerage}
+                                onFocus={() => scrollToInput(refs.brokerage)}
+                            />
+                        </View>
 
-                {/* Notes */}
-                <PaperText style={modalStyles.label}>Notes</PaperText>
-                <PaperTextInput
-                    mode="outlined"
-                    multiline
-                    numberOfLines={5}
-                    style={[modalStyles.input, { height: scale(120), textAlignVertical: 'top' }]}
-                    theme={{ roundness: scale(24) }}
-                    value={notes}
-                    onChangeText={setNotes}
-                />
+                        <PaperText style={modalStyles.label}>Notes</PaperText>
+                        <View ref={refs.notes}>
+                            <PaperTextInput
+                                mode="outlined"
+                                multiline
+                                numberOfLines={5}
+                                style={[modalStyles.input, { height: scale(120), textAlignVertical: 'top' }]}
+                                theme={{ roundness: scale(24) }}
+                                value={notes}
+                                onChangeText={setNotes}
+                                onFocus={() => scrollToInput(refs.notes)}
+                            />
+                        </View>
 
-                {/* Original Contact */}
-                <PaperText style={modalStyles.label}>Original Contact</PaperText>
-                <TouchableRipple
-                    style={modalStyles.datePickerButton}
-                    onPress={() => setShowDatePicker(true)}
-                >
-                    <PaperText>
-                        {originalContact.toLocaleDateString()}
-                    </PaperText>
-                </TouchableRipple>
-                {showDatePicker && (
-                    <DateTimePicker
-                        value={originalContact}
-                        mode="date"
-                        display="default"
-                        onChange={(_, d) => {
-                            setShowDatePicker(false);
-                            if (d) setOriginalContact(d);
-                        }}
-                    />
-                )}
+                        <PaperText style={modalStyles.label}>Original Contact</PaperText>
+                        <TouchableRipple
+                            style={modalStyles.datePickerButton}
+                            onPress={() => setShowDatePicker(true)}
+                        >
+                            <PaperText>{originalContact.toLocaleDateString()}</PaperText>
+                        </TouchableRipple>
+                        {showDatePicker && (
+                            <DateTimePicker
+                                value={originalContact}
+                                mode="date"
+                                display="default"
+                                onChange={(_, d) => {
+                                    setShowDatePicker(false);
+                                    if (d) setOriginalContact(d);
+                                }}
+                            />
+                        )}
 
-                <PaperButton
-                    mode="contained"
-                    onPress={handleSave}
-                    style={modalStyles.modalButton}
-                >
-                    Save Changes
-                </PaperButton>
-                <PaperButton
-                    mode="outlined"
-                    onPress={onDismiss}
-                    style={modalStyles.modalButton}
-                >
-                    Cancel
-                </PaperButton>
-            </ScrollView>
+                        <PaperButton mode="contained" onPress={handleSave} style={modalStyles.modalButton}>
+                            Save Changes
+                        </PaperButton>
+                        <PaperButton mode="outlined" onPress={onDismiss} style={modalStyles.modalButton}>
+                            Cancel
+                        </PaperButton>
+                    </ScrollView>
+                </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
         </PaperModal>
     );
 };
@@ -818,15 +860,6 @@ const ContactsScreen = () => {
                         {snackbarMessage}
                     </Snackbar>
                 </Portal>
-
-                <Snackbar
-                    visible={snackbarVisible}
-                    onDismiss={() => setSnackbarVisible(false)}
-                    duration={3000}
-                    action={{ label: 'OK', onPress: () => setSnackbarVisible(false) }}
-                >
-                    {snackbarMessage}
-                </Snackbar>
             </View>
         </SafeAreaView>
     );

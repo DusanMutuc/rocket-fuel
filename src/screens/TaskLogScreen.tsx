@@ -21,6 +21,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import PopoverTooltip from '../components/PopoverTooltip';
+import { TouchableWithoutFeedback } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const guidelineBaseWidth = 375;
@@ -148,14 +149,14 @@ const TaskLogScreen = () => {
 
     const handleIncrease = () => {
         if (!grossRevenue && amount < 99) setAmount(amount + 1);
-        else if (grossRevenue && amount < 100) setAmount(100);
-        else if (grossRevenue) setAmount(amount + 100);
+        else if (grossRevenue && amount < 1000) setAmount(1000);
+        else if (grossRevenue) setAmount(amount + 1000);
         else showSnack('Maximum of 99 allowed');
     };
 
     const handleDecrease = () => {
         if (!grossRevenue && amount > 1) setAmount(amount - 1);
-        else if (grossRevenue && amount > 100) setAmount(amount - 100);
+        else if (grossRevenue && amount > 1000) setAmount(amount - 1000);
         else if (grossRevenue) setAmount(1);
         else showSnack('Minimum amount is 1');
     };
@@ -174,101 +175,117 @@ const TaskLogScreen = () => {
                 created_at: selectedDate.toISOString(),
             },
         ]);
+        Keyboard.dismiss(); 
         showSnack(error ? 'Error logging tasks' : 'Tasks logged successfully');
     };
 
     return (
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-            <View style={styles.container}>
-                <PopoverTooltip
-                    tooltipText="Welcome to your Task Log Screen! Here you can log tasks by selecting a task type, adjusting the amount, and picking a date."
-                />
-
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     style={styles.keyboardAvoidingContainer}
-                    keyboardVerticalOffset={Platform.OS === 'ios' ? scale(60) : 0}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? scale(100) : 0}
                 >
-                    
-                        <View style={styles.headerRow}>
-                            <View style={styles.headerLeftPlaceholder} />
-                            <Text style={styles.headerTitle}>Select Task Type:</Text>
-                            <View style={styles.headerRightPlaceholder} />
+                    <ScrollView
+                        ref={scrollViewRef}
+                        contentContainerStyle={styles.scrollContainer}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        <View style={styles.innerContent}>
+                            <PopoverTooltip
+                                tooltipText="Welcome to your Task Log Screen! Here you can log tasks by selecting a task type, adjusting the amount, and picking a date."
+                            />
+
+                            {/* Task selection UI */}
+                            <View style={styles.headerRow}>
+                                <View style={styles.headerLeftPlaceholder} />
+                                <Text style={styles.headerTitle}>Select Task Type:</Text>
+                                <View style={styles.headerRightPlaceholder} />
+                            </View>
+
+                            <View style={styles.content}>
+                                <View style={styles.buttonContainer}>
+                                    {taskTypes
+                                        .filter(tt => !['gross_revenue', 'gross revenue'].includes(tt.name.toLowerCase()))
+                                        .map(tt => (
+                                            <WrapButton
+                                                key={tt.task_type_id}
+                                                onPress={() => {
+                                                    setTaskTypeId(tt.task_type_id);
+                                                    setGrossRevenue(false);
+                                                    setAmount(1);
+                                                    Keyboard.dismiss();
+                                                }}
+                                                label={formatTaskName(tt.name)}
+                                                selected={!grossRevenue && taskTypeId === tt.task_type_id}
+                                            />
+                                        ))}
+                                </View>
+
+                                <View style={styles.grossRevenueRow}>
+                                    <WrapButton
+                                        onPress={() => {
+                                            setGrossRevenue(true);
+                                            setTaskTypeId(7);
+                                            Keyboard.dismiss();
+                                        }}
+                                        label="Gross Revenue"
+                                        selected={grossRevenue}
+                                    />
+                                </View>
+
+                                <Text style={styles.label}>Amount:</Text>
+                                <View style={styles.amountContainer}>
+                                    <IconButton icon="minus" onPress={handleDecrease} style={styles.amountIncrementor} size={20} />
+                                    <TextInput
+                                        mode="outlined"
+                                        style={styles.amountInput}
+                                        theme={{ roundness: scale(3) }}
+                                        value={amount.toString()}
+                                        onChangeText={handleAmountChange}
+                                        keyboardType="numeric"
+                                        left={grossRevenue ? <TextInput.Affix text="$" /> : null}
+                                    />
+                                    <IconButton icon="plus" onPress={handleIncrease} style={styles.amountIncrementor} size={20} />
+                                </View>
+
+                                <TouchableRipple onPress={showDatePicker} style={styles.dateContainer}>
+                                    <Text style={styles.dateText}>{selectedDate.toDateString()}</Text>
+                                </TouchableRipple>
+
+                                {showPicker && (
+                                    <DateTimePicker
+                                        value={selectedDate}
+                                        mode="date"
+                                        display="default"
+                                        onChange={onChange}
+                                    />
+                                )}
+                            </View>
                         </View>
 
-                        <View style={styles.content}>
-                            <View style={styles.buttonContainer}>
-                                {taskTypes
-                                    .filter(tt => !['gross_revenue', 'gross revenue'].includes(tt.name.toLowerCase()))
-                                    .map(tt => (
-                                        <WrapButton
-                                            key={tt.task_type_id}
-                                            onPress={() => {
-                                                setTaskTypeId(tt.task_type_id);
-                                                setGrossRevenue(false);
-                                                setAmount(1);
-                                            }}
-                                            label={formatTaskName(tt.name)}
-                                            selected={!grossRevenue && taskTypeId === tt.task_type_id}
-                                        />
-                                    ))}
-                            </View>
-
-                            <View style={styles.grossRevenueRow}>
-                                <WrapButton
-                                    onPress={() => {
-                                        setGrossRevenue(true);
-                                        setTaskTypeId(7);
-                                    }}
-                                    label="Gross Revenue"
-                                    selected={grossRevenue}
-                                />
-                            </View>
-
-                            <Text style={styles.label}>Amount:</Text>
-                            <View style={styles.amountContainer}>
-                                <IconButton icon="minus" onPress={handleDecrease} style={styles.amountIncrementor} size={20} />
-                                <TextInput
-                                    mode="outlined"
-                                    style={styles.amountInput}
-                                    theme={{ roundness: scale(3) }}
-                                    value={amount.toString()}
-                                    onChangeText={handleAmountChange}
-                                    keyboardType="numeric"
-                                    left={grossRevenue ? <TextInput.Affix text="$" /> : null}
-                                />
-                                <IconButton icon="plus" onPress={handleIncrease} style={styles.amountIncrementor} size={20} />
-                            </View>
-
-                            <TouchableRipple onPress={showDatePicker} style={styles.dateContainer}>
-                                <Text style={styles.dateText}>{selectedDate.toDateString()}</Text>
-                            </TouchableRipple>
-
-                            {showPicker && (
-                                <DateTimePicker
-                                    value={selectedDate}
-                                    mode="date"
-                                    display="default"
-                                    onChange={onChange}
-                                />
-                            )}
+                        <View style={styles.logButtonContainer}>
+                            <Button
+                                mode="contained"
+                                onPress={handleLogTask}
+                                style={styles.logButton}
+                                labelStyle={styles.logButtonLabel}
+                            >
+                                Log
+                            </Button>
                         </View>
+                    </ScrollView>
+                    <Snackbar
+                        visible={snackbarVisible}
+                        onDismiss={() => setSnackbarVisible(false)}
+                        duration={3000}
+                        action={{ label: 'OK', onPress: () => setSnackbarVisible(false) }}
+                    >
+                        {snackbarMessage}
+                    </Snackbar>
                 </KeyboardAvoidingView>
-
-                <View style={styles.logButtonContainer}>
-                    <Button mode="contained" onPress={handleLogTask} style={styles.logButton} labelStyle={styles.logButtonLabel}>
-                        Log
-                    </Button>
-                </View>
-                <Snackbar
-                    visible={snackbarVisible}
-                    onDismiss={() => setSnackbarVisible(false)}
-                    duration={3000}
-                    action={{ label: 'OK', onPress: () => setSnackbarVisible(false) }}
-                >
-                    {snackbarMessage}
-                </Snackbar>
-            </View>
+            </TouchableWithoutFeedback>
         </SafeAreaView>
     );
 };
@@ -283,6 +300,7 @@ const styles = StyleSheet.create({
     keyboardAvoidingContainer: {
         flex: 1,
         width: '100%',
+        marginTop: -60
     },
     safeArea: {
         flex: 1,
