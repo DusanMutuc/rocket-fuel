@@ -85,26 +85,42 @@ const ProgressScreen = () => {
             let startDate: string;
             let endDate: string;
 
-            if (viewMode === 'weekly') {
-                startDate = format(subDays(new Date(), 7), 'yyyy-MM-dd');
-                endDate = format(new Date(), 'yyyy-MM-dd');
-            } else {
-                const { data: course, error: courseError } = await supabase
-                    .from('courses')
-                    .select('start_date')
-                    .order('start_date', { ascending: false })
-                    .limit(1)
-                    .single();
+            // Step 1: Get active course_id for this user
+            const { data: userCourse, error: userCourseError } = await supabase
+                .from('user_courses')
+                .select('course_id')
+                .eq('user_id', user.id)
+                .eq('is_active', true)
+                .single();
 
-                if (courseError || !course?.start_date) {
-                    setError('Error fetching course start date.');
-                    return;
-                }
-
-                startDate = course.start_date;
-                endDate = format(new Date(), 'yyyy-MM-dd');
+            if (userCourseError || !userCourse?.course_id) {
+                setError('Could not fetch user\'s active course.');
+                return;
             }
 
+            const courseId = userCourse.course_id;
+
+            // Step 2: Get start_date for that course
+            const { data: courseData, error: courseError } = await supabase
+                .from('courses')
+                .select('start_date')
+                .eq('course_id', courseId)
+                .single();
+
+            if (courseError || !courseData?.start_date) {
+                setError('Could not fetch course start date.');
+                return;
+            }
+
+            if (viewMode === 'weekly') {
+                startDate = format(subDays(new Date(), 7), 'yyyy-MM-dd');
+            } else {
+                startDate = courseData.start_date;
+            }
+
+            endDate = format(new Date(), 'yyyy-MM-dd');
+
+            // Step 3: Fetch task_types for scaling
             const { data: taskTypesData, error: taskTypesError } = await supabase
                 .from('task_types')
                 .select('name, minimal_amount');
@@ -137,17 +153,23 @@ const ProgressScreen = () => {
                 exercises: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.exercises],
             };
 
-            const { data, error: rpcError } = await supabase.rpc('get_daily_task_counts_all_types_in_range', {
-                uid: user.id,
-                start_date: startDate,
-                end_date: endDate,
-            });
+            // Step 4: Fetch chart data
+            const { data, error: rpcError } = await supabase.rpc(
+                'get_daily_task_counts_all_types_in_range',
+                {
+                    uid: user.id,
+                    _course_id: courseId,
+                    start_date: startDate,
+                    end_date: endDate,
+                }
+            );
 
             if (rpcError) {
                 setError(rpcError.message);
                 return;
             }
 
+            // Step 5: Process for graphing
             let running = {
                 asks: 0,
                 follow_ups: 0,
@@ -186,6 +208,7 @@ const ProgressScreen = () => {
 
         fetchData();
     }, [user, viewMode]);
+
 
     if (!font) {
         return (

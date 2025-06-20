@@ -21,10 +21,8 @@ const RootNavigation = () => {
         );
     }
 
-    // If not logged in, go to AuthNavigator
     if (!user) return <AuthNavigator />;
 
-    // User is logged in but needs to change password
     if (profile?.needs_password_change) {
         return (
             <AuthNavigator
@@ -34,10 +32,8 @@ const RootNavigation = () => {
         );
     }
 
-    // Logged in and ready to go
     return <AppNavigator />;
 };
-
 
 const App = () => {
     return (
@@ -46,7 +42,6 @@ const App = () => {
                 <AuthProvider>
                     <NavigationContainer ref={navigationRef}>
                         <RootNavigation />
-                        {/* @ts-ignore */}
                     </NavigationContainer>
                 </AuthProvider>
             </PaperProvider>

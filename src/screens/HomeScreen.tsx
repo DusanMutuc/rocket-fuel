@@ -99,27 +99,31 @@ const HomeScreen = () => {
     const [snackbarVisible, setSnackbarVisible] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
     const headerHeight = useHeaderHeight()
+    const [courseId, setCourseId] = useState<string | null>(null);
     const fetchWeeklyData = async () => {
         if (!user) return;
 
-        const { data: course, error: courseError } = await supabase
-            .from('courses')
-            .select('start_date')
-            .order('start_date', { ascending: false })
-            .limit(1)
+        const { data: userCourse, error: userCourseError } = await supabase
+            .from('user_courses')
+            .select('course_id')
+            .eq('user_id', user.id)
+            .eq('is_active', true)
             .single();
 
-        if (courseError || !course) {
-            console.error('Error fetching course start date:', courseError?.message);
+        if (userCourseError || !userCourse) {
+            console.error('Error fetching user course:', userCourseError?.message);
             return;
         }
 
-        const courseStart = course.start_date;
+        const courseId = userCourse.course_id;
+        setCourseId(courseId);
+
 
         const { data, error } = await supabase.rpc('get_weekly_task_counts', {
-            course_start: courseStart,
+            _course_id: courseId,
             uid: user.id,
         });
+
 
         if (error) {
             console.error('Error fetching weekly task counts:', error);
@@ -183,7 +187,9 @@ const HomeScreen = () => {
             _task_type_id: selectedTaskType.task_type_id,
             _week_start: currentWeek.week_start,
             _new_total: newWeeklyTotal,
+            _course_id: courseId,
         });
+
         setSnackbarMessage(error ? 'Error updating logs' : 'Weekly total updated successfully');
         setSnackbarVisible(true);
         await fetchWeeklyData();

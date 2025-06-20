@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Dimensions } from 'react-native';
+import { StyleSheet, View, Dimensions, Linking } from 'react-native';
 import { TextInput, Button, Surface, Text, Snackbar } from 'react-native-paper';
 import { supabase } from '../lib/supabase';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { AuthStackParamList } from '../navigation/AuthNavigator';
 import { useAuth } from '../contexts/AuthContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 
 type LoginScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
 
@@ -56,7 +55,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
         }
 
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: 'https://boisterous-bombolone-5f86bc.netlify.app/',
+            redirectTo: 'https://www.rocketfuelmembers/reset-password'
         });
 
         setSnackbarMessage(error ? error.message : 'Reset link sent. Check your inbox!');
@@ -114,11 +113,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
                 >
                     {snackbarMessage}
                 </Snackbar>
+
+                <Text
+                    onPress={() => Linking.openURL('https://www.rocketfuelmembers.com/privacy-policy')}
+                    style={styles.privacyLink}
+                >
+                    Privacy Policy
+                </Text>
             </View>
         </SafeAreaView>
-
     );
-
 };
 
 const styles = StyleSheet.create({
@@ -130,7 +134,6 @@ const styles = StyleSheet.create({
         alignSelf: 'center',
         backgroundColor: '#f5f5f5',
     },
-   
     header: {
         fontSize: scale(24),
         fontWeight: 'bold',
@@ -139,7 +142,7 @@ const styles = StyleSheet.create({
     },
     input: {
         marginBottom: scale(16),
-        backgroundColor: '#fff', // Ensure icons don't overlap
+        backgroundColor: '#fff',
     },
     button: {
         marginTop: scale(8),
@@ -156,14 +159,12 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#f5f5f5',
     },
-
     wrapper: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         padding: scale(16),
     },
-
     card: {
         width: '100%',
         maxWidth: 400,
@@ -172,5 +173,11 @@ const styles = StyleSheet.create({
         borderRadius: scale(8),
         elevation: 4,
     },
-
+    privacyLink: {
+        textAlign: 'center',
+        color: 'gray',
+        fontSize: scale(12),
+        marginTop: scale(20),
+        textDecorationLine: 'underline',
+    },
 });

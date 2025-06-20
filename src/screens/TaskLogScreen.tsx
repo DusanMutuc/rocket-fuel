@@ -84,6 +84,7 @@ const TaskLogScreen = () => {
     const [snackbarVisible, setSnackbarVisible] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
     const scrollViewRef = useRef<ScrollView>(null);
+    const [courseId, setCourseId] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchTaskTypes = async () => {
@@ -97,7 +98,28 @@ const TaskLogScreen = () => {
                 }
             }
         };
+
+        const fetchCourseId = async () => {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const uid = sessionData?.session?.user?.id;
+            if (!uid) return;
+
+            const { data: userCourse, error } = await supabase
+                .from('user_courses')
+                .select('course_id')
+                .eq('user_id', uid)
+                .eq('is_active', true)
+                .single();
+
+            if (!error && userCourse) {
+                setCourseId(userCourse.course_id);
+            } else {
+                console.error("Could not fetch active course_id", error?.message);
+            }
+        };
+
         fetchTaskTypes();
+        fetchCourseId();
 
         const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
             scrollViewRef.current?.scrollTo({ y: 0, animated: true });
@@ -107,6 +129,7 @@ const TaskLogScreen = () => {
             keyboardDidHideListener.remove();
         };
     }, []);
+
 
     const formatTaskName = (name: string) =>
         name
@@ -166,6 +189,7 @@ const TaskLogScreen = () => {
         if (!session?.user) return showSnack('Not logged in');
         if (!grossRevenue && taskTypeId === null) return showSnack('Select a task type');
         if (!grossRevenue && amount > 99) return showSnack('Amount cannot exceed 99');
+        if (!courseId) return showSnack('No active course found');
 
         const { error } = await supabase.from('task_logs').insert([
             {
@@ -173,11 +197,14 @@ const TaskLogScreen = () => {
                 task_type_id: taskTypeId,
                 amount,
                 created_at: selectedDate.toISOString(),
+                course_id: courseId, // Add course tracking
             },
         ]);
-        Keyboard.dismiss(); 
+
+        Keyboard.dismiss();
         showSnack(error ? 'Error logging tasks' : 'Tasks logged successfully');
     };
+
 
     return (
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
