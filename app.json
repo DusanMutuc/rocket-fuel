@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Rocket Fuel",
-    "slug": "rocket-fuel",
+    "slug": "MyRealEstateApp",
     "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -25,7 +25,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.dusanmutuc.MyRealEstateApp"
+      "package": "com.twentynewclients.rocketfuel"
     },
     "web": {
       "favicon": "./assets/favicon.png"
