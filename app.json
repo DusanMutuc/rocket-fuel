@@ -14,7 +14,7 @@
     },
     "ios": {
       "buildNumber": "4",
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.twentynewclients.rocketfuel",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
