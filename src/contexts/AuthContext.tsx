@@ -32,46 +32,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             .single();
 
         if (!error) {
-            console.log("Fetched profile:", userProfile);
+            console.log('Fetched profile:', userProfile);
             setProfile(userProfile);
         } else {
             console.error('Error loading profile:', error.message);
         }
     };
 
-
     const refreshProfile = async () => {
         if (user) {
-            console.log("Refreshing profile for", user.id);
+            console.log('Refreshing profile for', user.id);
             await fetchProfile(user.id);
         }
     };
 
-
     useEffect(() => {
-        async function checkSession() {
-            const {
-                data: { session },
-            } = await supabase.auth.getSession();
-
-            const currentUser = session?.user ?? null;
-            setUser(currentUser);
-
-            if (currentUser) await fetchProfile(currentUser.id);
-
-            setLoading(false);
-        }
-
-        checkSession();
-
+        // Wait for Supabase to restore session internally
         const { data: authListener } = supabase.auth.onAuthStateChange(
-            async (event, session) => {
+            async (_event, session) => {
                 const currentUser = session?.user ?? null;
                 setUser(currentUser);
-                if (currentUser) await fetchProfile(currentUser.id);
-                else setProfile(null);
+                if (currentUser) {
+                    await fetchProfile(currentUser.id);
+                } else {
+                    setProfile(null);
+                }
+                setLoading(false);
             }
         );
+
+        // Hack: call getSession once just to trigger internal restoration,
+        // but don’t use its result directly
+        supabase.auth.getSession().then(() => {
+            // We just wait until the above onAuthStateChange fires
+        });
 
         return () => {
             authListener.subscription.unsubscribe();
