@@ -327,7 +327,7 @@ const styles = StyleSheet.create({
     keyboardAvoidingContainer: {
         flex: 1,
         width: '100%',
-        marginTop: -60
+        //marginTop: -60
     },
     safeArea: {
         flex: 1,

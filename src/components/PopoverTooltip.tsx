@@ -32,7 +32,7 @@ const HeaderTooltip: React.FC<HeaderTooltipProps> = ({
 
     const combinedContainerStyle = [
         styles.iconContainer,
-        { top: insets.top - 20, right: insets.right + 10 },
+        { top: insets.top - 0, right: insets.right + 10 },
         containerStyle,
     ];
 

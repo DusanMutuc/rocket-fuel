@@ -866,7 +866,7 @@ const ContactsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: scale(16), marginTop: -50 },
+    container: { flex: 1, padding: scale(16), marginTop: 0 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     header: { fontSize: scale(24), fontWeight: 'bold', marginBottom: scale(10), textAlign: 'center' },
     safeArea: {

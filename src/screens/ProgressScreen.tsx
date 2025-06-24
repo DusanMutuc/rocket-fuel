@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
     },
     screen: {
         flex: 1,
-        marginTop: -50,
+        //marginTop: -50,
     },
     chartAndLegendContainer: {
         flex: 1,
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
         borderWidth: scale(1),
         borderRadius: scale(20),
         minHeight: scale(200),
-        marginTop: -40
+        marginTop: -20
     },
     legendContainer: {
         marginTop: scale(20),

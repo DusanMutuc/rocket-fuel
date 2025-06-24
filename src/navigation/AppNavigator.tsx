@@ -49,7 +49,7 @@ function MainTabs() {
                     headerTransparent: false,
                     headerStyle: {
                         backgroundColor: 'transparent',
-                        height: 100,
+                        //height: 100,
                     },
                     headerTitleAlign: 'center',
                     headerTintColor: colors.onPrimary,
@@ -58,7 +58,7 @@ function MainTabs() {
                     headerLeft: () => (
                         <Image
                             source={require('../../assets/logo.png')}
-                            style={{ width: 100, height: 100, marginLeft: 10, resizeMode: 'contain' }}
+                            style={{ width: 100, height: 40, marginLeft: 10, resizeMode: 'contain' }}
                         />
                     ),
                     headerRight: () => (
@@ -99,8 +99,6 @@ function MainTabs() {
                     name="Home"
                     component={HomeScreen}
                     options={{
-                        headerShown: true,
-                        headerTransparent: true,
                         tabBarIcon: ({ color, size }) => (
                             <MaterialCommunityIcons name="home" color={color} size={size} />
                         ),

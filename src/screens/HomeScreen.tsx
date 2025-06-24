@@ -364,7 +364,6 @@ const styles = StyleSheet.create({
     },
     screen: {
         flex: 1,
-        marginTop: 50
     },
     scrollContainer: {
         flexGrow: 1,  // Takes all available space
