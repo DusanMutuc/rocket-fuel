@@ -103,6 +103,7 @@ const HomeScreen = () => {
     const fetchWeeklyData = async () => {
         if (!user) return;
 
+        // Step 1: Get the user's active course_id
         const { data: userCourse, error: userCourseError } = await supabase
             .from('user_courses')
             .select('course_id')
@@ -118,19 +119,46 @@ const HomeScreen = () => {
         const courseId = userCourse.course_id;
         setCourseId(courseId);
 
+        // Step 2: Get the start_date from the courses table
+        const { data: courseData, error: courseError } = await supabase
+            .from('courses')
+            .select('start_date')
+            .eq('course_id', courseId)
+            .single();
 
+        if (courseError || !courseData) {
+            console.error('Error fetching course start_date:', courseError?.message);
+            return;
+        }
+
+        const startDateStr = courseData.start_date;
+
+        // Step 3: Fetch the weekly task counts
         const { data, error } = await supabase.rpc('get_weekly_task_counts', {
             _course_id: courseId,
             uid: user.id,
         });
 
-
         if (error) {
             console.error('Error fetching weekly task counts:', error);
-        } else {
-            setWeeklyData(data);
+            return;
+        }
+
+        setWeeklyData(data);
+
+        // Step 4: Calculate the current week index
+        if (startDateStr && data.length > 0) {
+            const startDate = new Date(startDateStr);
+            const today = new Date();
+            const msPerWeek = 1000 * 60 * 60 * 24 * 7;
+
+            const weeksSinceStart = Math.floor((today.getTime() - startDate.getTime()) / msPerWeek);
+            const clampedWeekIndex = Math.min(Math.max(0, weeksSinceStart), data.length - 1);
+            setCurrentWeekIndex(clampedWeekIndex);
         }
     };
+
+
 
     useFocusEffect(
         useCallback(() => {
@@ -252,6 +280,9 @@ const HomeScreen = () => {
                                         </TouchableOpacity>
                                     );
                                 })}
+
+                        <View style={{ height: scale(100) }} />
+
                     </View>
 
                     {/* Summary moved inside scrollview */}
@@ -389,8 +420,8 @@ const styles = StyleSheet.create({
     summaryRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginVertical: scale(20),
-        marginTop: scale(20)
+        marginVertical: scale(15),
+        marginTop: scale(25)
     },
     
     // Add this new container style:
@@ -401,7 +432,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        marginVertical: scale(16),
+        marginVertical: scale(5),
     },
     
     progressContainer: {
