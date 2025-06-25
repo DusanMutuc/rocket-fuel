@@ -17,6 +17,8 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import PopoverTooltip from '../components/PopoverTooltip';
 import Legend from '../components/Legend';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const guidelineBaseWidth = 375;
@@ -78,7 +80,8 @@ const ProgressScreen = () => {
         setViewMode(prev => (prev === 'weekly' ? 'alltime' : 'weekly'));
     };
 
-    useEffect(() => {
+    useFocusEffect(useCallback(() => {
+
         async function fetchData() {
             if (!user?.id) return;
 
@@ -207,7 +210,8 @@ const ProgressScreen = () => {
         }
 
         fetchData();
-    }, [user, viewMode]);
+        return () => { };
+    }, [user, viewMode]));
 
 
     if (!font) {
