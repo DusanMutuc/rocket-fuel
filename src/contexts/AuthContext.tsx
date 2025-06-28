@@ -47,30 +47,60 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     useEffect(() => {
-        // Wait for Supabase to restore session internally
-        const { data: authListener } = supabase.auth.onAuthStateChange(
-            async (_event, session) => {
-                const currentUser = session?.user ?? null;
-                setUser(currentUser);
-                if (currentUser) {
-                    await fetchProfile(currentUser.id);
-                } else {
-                    setProfile(null);
-                }
-                setLoading(false);
-            }
-        );
+        let resolved = false;
 
-        // Hack: call getSession once just to trigger internal restoration,
-        // but don’t use its result directly
-        supabase.auth.getSession().then(() => {
-            // We just wait until the above onAuthStateChange fires
+        const finish = () => {
+            if (!resolved) {
+                setLoading(false);
+                resolved = true;
+            }
+        };
+
+        const init = async () => {
+            // Call getSession to trigger internal restoration
+            const { data: sessionData } = await supabase.auth.getSession();
+            const session = sessionData?.session;
+
+            if (session?.user) {
+                setUser(session.user);
+                await fetchProfile(session.user.id);
+                finish();
+            } else {
+                // Attempt manual refresh after slight delay
+                setTimeout(async () => {
+                    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+                    if (refreshed?.session?.user) {
+                        setUser(refreshed.session.user);
+                        await fetchProfile(refreshed.session.user.id);
+                    } else {
+                        console.warn("Session refresh failed or returned null user:", refreshError?.message);
+                    }
+                    finish();
+                }, 1000); // short delay to let onAuthStateChange happen if it's going to
+            }
+        };
+
+        const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            const currentUser = session?.user ?? null;
+            setUser(currentUser);
+            if (currentUser) await fetchProfile(currentUser.id);
+            else setProfile(null);
+            finish();
         });
+
+        init();
+
+        const fallbackTimeout = setTimeout(() => {
+            console.warn("Auth fallback timeout triggered.");
+            finish();
+        }, 8000); // max total wait
 
         return () => {
             authListener.subscription.unsubscribe();
+            clearTimeout(fallbackTimeout);
         };
     }, []);
+
 
     return (
         <AuthContext.Provider value={{ user, loading, profile, refreshProfile }}>
