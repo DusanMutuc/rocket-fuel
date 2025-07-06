@@ -587,7 +587,7 @@ const ContactsScreen = () => {
                 original_contact: data.original_contact,
                 notes: data.notes || '',
             };
-            const { error } = await supabase.from('agents').insert([payload]);
+            const { error } = await supabase.from('agent_contacts').insert([payload]);
             if (error) throw new Error(error.message);
             showSnack('Agent added successfully');
             setAddAgentModalVisible(false);
@@ -641,7 +641,7 @@ const ContactsScreen = () => {
         if (!user || !contactToDelete) return;
         try {
             if (selectedType === 'Agent') {
-                const { error } = await supabase.from('agents').delete().eq('id', contactToDelete.id);
+                const { error } = await supabase.from('agent_contacts').delete().eq('id', contactToDelete.id);
                 if (error) throw new Error(error.message);
             } else {
                 const { error } = await supabase
