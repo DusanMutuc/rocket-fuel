@@ -25,11 +25,7 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.twentynewclients.rocketfuel",
-      "navigationBar": {
-        "visible": false,
-        "behavior": "immersive"
-      }
+      "package": "com.twentynewclients.rocketfuel"
     },
     "web": {
       "favicon": "./assets/favicon.png"
