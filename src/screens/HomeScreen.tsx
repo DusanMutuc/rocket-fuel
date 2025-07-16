@@ -85,7 +85,7 @@ const TaskProgressBar = ({
 };
 
 const HomeScreen = () => {
-    const { user } = useAuth();
+    const { user, loading } = useAuth();
     const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([]);
     const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
     const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
@@ -162,34 +162,38 @@ const HomeScreen = () => {
 
     useFocusEffect(
         useCallback(() => {
-            if (!user) return;
+            if (loading || !user) return;
 
-            fetchWeeklyData();
-            const fetchTaskTypes = async () => {
-                const { data, error } = await supabase
-                    .from('task_types')
-                    .select('*');
-                if (!error && data) setTaskTypes(data);
-            };
-            fetchTaskTypes();
+            const runAllFetches = async () => {
+                await fetchWeeklyData();
 
-            const fetchPipelineSummary = async () => {
-                const { data, error } = await supabase.rpc(
-                    'get_clients_by_client_type',
-                    { uid: user.id, client_type_name: 'Pipeline' }
-                );
-                if (!error && data) {
-                    const count = data.length;
-                    const totalRevenue = data.reduce(
-                        (sum: number, c: any) => sum + (c.pipeline_revenue || 0),
-                        0
-                    );
-                    setPipelineSummary({ count, totalRevenue });
-                }
+                const fetchTaskTypes = async () => {
+                    const { data, error } = await supabase.from('task_types').select('*');
+                    if (!error && data) setTaskTypes(data);
+                };
+                await fetchTaskTypes();
+
+                const fetchPipelineSummary = async () => {
+                    const { data, error } = await supabase.rpc('get_clients_by_client_type', {
+                        uid: user.id,
+                        client_type_name: 'Pipeline',
+                    });
+                    if (!error && data) {
+                        const count = data.length;
+                        const totalRevenue = data.reduce(
+                            (sum: number, c: any) => sum + (c.pipeline_revenue || 0),
+                            0
+                        );
+                        setPipelineSummary({ count, totalRevenue });
+                    }
+                };
+                await fetchPipelineSummary();
             };
-            fetchPipelineSummary();
-        }, [user])
+
+            runAllFetches();
+        }, [loading, user])
     );
+
 
     const currentWeek = weeklyData[currentWeekIndex];
 
