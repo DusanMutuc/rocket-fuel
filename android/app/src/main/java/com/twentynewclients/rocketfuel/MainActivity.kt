@@ -3,9 +3,8 @@ package com.twentynewclients.rocketfuel
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.view.WindowInsets
 import android.view.WindowInsetsController
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -21,46 +20,46 @@ class MainActivity : ReactActivity() {
         setTheme(R.style.AppTheme)
         super.onCreate(savedInstanceState)
         
-        // COMMENTED OUT TO ISOLATE THE ISSUE
-        // applyImmersiveMode()
+        // Apply immersive mode on creation
+        applyImmersiveMode()
     }
 
     override fun onResume() {
         super.onResume()
-        
-        // COMMENTED OUT TO ISOLATE THE ISSUE
-        // applyImmersiveMode()
+        // Reapply immersive mode when app resumes
+        applyImmersiveMode()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        
-        // COMMENTED OUT TO ISOLATE THE ISSUE
-        // if (hasFocus) {
-        //     applyImmersiveMode()
-        // }
+        if (hasFocus) {
+            // Reapply immersive mode when window gains focus
+            applyImmersiveMode()
+        }
     }
 
-    // KEEPING THE FUNCTION BUT NOT CALLING IT
     private fun applyImmersiveMode() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Modern approach for API 30+
-            WindowCompat.setDecorFitsSystemWindows(window, false)
-            window.insetsController?.let { controller ->
-                controller.hide(WindowInsetsCompat.Type.systemBars())
-                controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // Modern approach for API 30+ (Android 11+)
+                window.setDecorFitsSystemWindows(false)
+                window.insetsController?.let { controller ->
+                    controller.hide(WindowInsets.Type.navigationBars())
+                    controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+            } else {
+                // Legacy approach for older Android versions
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                )
             }
-        } else {
-            // Legacy approach for older versions
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            )
+        } catch (e: Exception) {
+            // Log the error but don't crash the app
+            e.printStackTrace()
         }
     }
 
