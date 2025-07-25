@@ -465,27 +465,23 @@ const AgentModal: React.FC<AgentModalProps> = ({
 };
 
 // ——————————————————————————————————————
-// Main ContactsScreen
 const ContactsScreen = () => {
-    const { user } = useAuth();
+    const { user, loading, initializing } = useAuth(); // Add loading and initializing
     const [contacts, setContacts] = useState<any[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
+    const [screenLoading, setScreenLoading] = useState<boolean>(true); // Rename to avoid conflict
     const [error, setError] = useState<string | null>(null);
     const [selectedType, setSelectedType] = useState<string>('Prospect');
-
     const [addClientModalVisible, setAddClientModalVisible] = useState(false);
     const [editClientModalVisible, setEditClientModalVisible] = useState(false);
     const [addAgentModalVisible, setAddAgentModalVisible] = useState(false);
     const [editAgentModalVisible, setEditAgentModalVisible] = useState(false);
-
     const [selectedClient, setSelectedClient] = useState<any>(null);
     const [selectedAgent, setSelectedAgent] = useState<any>(null);
-
     const [deleteModalVisible, setDeleteModalVisible] = useState(false);
     const [contactToDelete, setContactToDelete] = useState<any>(null);
-
     const [snackbarVisible, setSnackbarVisible] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
+
     const showSnack = (msg: string) => {
         setSnackbarMessage(msg);
         setSnackbarVisible(true);
@@ -493,14 +489,11 @@ const ContactsScreen = () => {
 
     // Fetch contacts
     useEffect(() => {
-        const fetchContacts = async () => {
-            if (!user) {
-                setError('User not logged in');
-                setLoading(false);
-                return;
-            }
-            setLoading(true);
+        // Add the initialization check
+        if (initializing || loading || !user) return;
 
+        const fetchContacts = async () => {
+            setScreenLoading(true); // Use screenLoading
             if (selectedType === 'Agent') {
                 const { data, error } = await supabase.rpc('get_agents_by_user', { uid: user.id });
                 if (error) setError(error.message);
@@ -513,15 +506,24 @@ const ContactsScreen = () => {
                 if (error) setError(error.message);
                 else setContacts(data);
             }
-
-            setLoading(false);
+            setScreenLoading(false); // Use screenLoading
         };
         fetchContacts();
-    }, [user, selectedType]);
+    }, [initializing, loading, user, selectedType]); // Updated dependencies
+
+    // Add loading state handling for auth initialization
+    if (initializing) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator animating size="large" />
+                <PaperText>Loading...</PaperText>
+            </View>
+        );
+    }
 
     const refreshContacts = async () => {
         if (!user) return;
-        setLoading(true);
+        setScreenLoading(true); // Use screenLoading
         if (selectedType === 'Agent') {
             const { data, error } = await supabase.rpc('get_agents_by_user', { uid: user.id });
             if (error) setError(error.message);
@@ -534,7 +536,7 @@ const ContactsScreen = () => {
             if (error) setError(error.message);
             else setContacts(data);
         }
-        setLoading(false);
+        setScreenLoading(false); // Use screenLoading
     };
 
     // Handlers...
@@ -724,24 +726,13 @@ const ContactsScreen = () => {
     };
 
     // Loading / error
-    if (loading) {
-        return (
-            <Surface style={styles.center}>
-                <ActivityIndicator animating size="large" />
-            </Surface>
-        );
-    }
-    if (error) {
-        return (
-            <Surface style={styles.center}>
-                <PaperText>Error: {error}</PaperText>
-            </Surface>
-        );
-    }
+    if (screenLoading) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator animating size="large" /></View>;
+    if (error) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><PaperText>Error: {error}</PaperText></View>;
+
 
     // ——————————————————————————————————————
     return (
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
             <View style={styles.container}>
                 <PopoverTooltip tooltipText="Welcome to your Contacts Page! Manage and filter your contacts here." />
                 <PaperText style={styles.header}>Contacts Page</PaperText>

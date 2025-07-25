@@ -195,10 +195,11 @@ const EditPipelineClientModal = ({
 
 
 // ---------- Main PipelineScreen Component ----------
+// ---------- Main PipelineScreen Component ----------
 const PipelineScreen = () => {
-    const { user } = useAuth();
+    const { user, loading, initializing } = useAuth(); // Add loading and initializing
     const [pipelineClients, setPipelineClients] = useState<Client[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
+    const [screenLoading, setScreenLoading] = useState<boolean>(true); // Fix: proper syntax for renaming
     const [error, setError] = useState<string | null>(null);
 
     // Modal states
@@ -224,13 +225,11 @@ const PipelineScreen = () => {
 
     // Fetch pipeline clients
     React.useEffect(() => {
+        // Add the initialization check
+        if (initializing || loading || !user) return;
+
         const fetchPipelineClients = async () => {
-            if (!user) {
-                setError('User not logged in');
-                setLoading(false);
-                return;
-            }
-            setLoading(true);
+            setScreenLoading(true); // Fix: use setScreenLoading
             const { data, error } = await supabase.rpc('get_clients_by_client_type', {
                 uid: user.id,
                 client_type_name: 'Pipeline',
@@ -240,14 +239,14 @@ const PipelineScreen = () => {
             } else if (data) {
                 setPipelineClients(data);
             }
-            setLoading(false);
+            setScreenLoading(false); // Fix: use setScreenLoading
         };
         fetchPipelineClients();
-    }, [user]);
+    }, [initializing, loading, user]); // Updated dependencies
 
     // Fetch prospects
     const fetchProspects = async () => {
-        if (!user) return;
+        if (!user) return; // This check is still good
         const { data, error } = await supabase.rpc('get_prospects_not_in_pipeline', { uid: user.id });
         if (error) {
             showSnack(`Error fetching prospects: ${error.message}`);
@@ -256,7 +255,7 @@ const PipelineScreen = () => {
         }
     };
 
-    // Fetch pipeline type ID
+    // Fetch pipeline type ID - this one doesn't depend on user, so no change needed
     React.useEffect(() => {
         const fetchPipelineTypeId = async () => {
             const { data, error } = await supabase
@@ -269,16 +268,26 @@ const PipelineScreen = () => {
         fetchPipelineTypeId();
     }, []);
 
+    // Add loading state handling for auth initialization
+    if (initializing) {
+        return (
+            <Surface style={styles.center}>
+                <ActivityIndicator animating size="large" />
+                <PaperText>Loading...</PaperText>
+            </Surface>
+        );
+    }
+
     // Refresh pipeline clients
     const refreshPipelineClients = async () => {
         if (!user) return;
-        setLoading(true);
+        setScreenLoading(true); // Fix: use setScreenLoading
         const { data, error } = await supabase.rpc('get_clients_by_client_type', {
             uid: user.id,
             client_type_name: 'Pipeline',
         });
         if (!error && data) setPipelineClients(data);
-        setLoading(false);
+        setScreenLoading(false); // Fix: use setScreenLoading
     };
 
     const getBackgroundColor = (temperature: string) => {
@@ -386,11 +395,11 @@ const PipelineScreen = () => {
     };
     const handleRemoveCancel = () => { setRemoveModalVisible(false); setClientToRemove(null); };
 
-    if (loading) return <Surface style={styles.center}><ActivityIndicator animating size="large" /></Surface>;
+    if (screenLoading) return <Surface style={styles.center}><ActivityIndicator animating size="large" /></Surface>;
     if (error) return <Surface style={styles.center}><PaperText>Error: {error}</PaperText></Surface>;
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }} edges={['top', 'left', 'right']}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }} edges={['left', 'right']}>
             <View style={styles.container}>
                 <PopoverTooltip tooltipText="Welcome to your Pipeline Contacts screen! Here you can manage your pipeline contacts and add prospects to the pipeline." />
                 <PaperText style={styles.header}>Pipeline Contacts</PaperText>
