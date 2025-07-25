@@ -196,11 +196,9 @@ const EditPipelineClientModal = ({
 
 // ---------- Main PipelineScreen Component ----------
 const PipelineScreen = () => {
-    const { user, loading } = useAuth();
-
+    const { user } = useAuth();
     const [pipelineClients, setPipelineClients] = useState<Client[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(true);
-
+    const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
     // Modal states
@@ -225,12 +223,14 @@ const PipelineScreen = () => {
     };
 
     // Fetch pipeline clients
-    // Fetch pipeline clients
     React.useEffect(() => {
-        if (loading || !user) return;
-
         const fetchPipelineClients = async () => {
-            setIsLoading(true);
+            if (!user) {
+                setError('User not logged in');
+                setLoading(false);
+                return;
+            }
+            setLoading(true);
             const { data, error } = await supabase.rpc('get_clients_by_client_type', {
                 uid: user.id,
                 client_type_name: 'Pipeline',
@@ -240,13 +240,10 @@ const PipelineScreen = () => {
             } else if (data) {
                 setPipelineClients(data);
             }
-            setIsLoading(false);
+            setLoading(false);
         };
-
         fetchPipelineClients();
-    }, [loading, user]);
-
-
+    }, [user]);
 
     // Fetch prospects
     const fetchProspects = async () => {
@@ -275,13 +272,13 @@ const PipelineScreen = () => {
     // Refresh pipeline clients
     const refreshPipelineClients = async () => {
         if (!user) return;
-        setIsLoading(true);
+        setLoading(true);
         const { data, error } = await supabase.rpc('get_clients_by_client_type', {
             uid: user.id,
             client_type_name: 'Pipeline',
         });
         if (!error && data) setPipelineClients(data);
-        setIsLoading(false);
+        setLoading(false);
     };
 
     const getBackgroundColor = (temperature: string) => {
@@ -389,8 +386,7 @@ const PipelineScreen = () => {
     };
     const handleRemoveCancel = () => { setRemoveModalVisible(false); setClientToRemove(null); };
 
-    if (isLoading) return <Surface style={styles.center}><ActivityIndicator animating size="large" /></Surface>;
-
+    if (loading) return <Surface style={styles.center}><ActivityIndicator animating size="large" /></Surface>;
     if (error) return <Surface style={styles.center}><PaperText>Error: {error}</PaperText></Surface>;
 
     return (

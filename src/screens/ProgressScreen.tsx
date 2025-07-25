@@ -52,8 +52,7 @@ interface LegendItem {
 }
 
 const ProgressScreen = () => {
-    const { user, loading } = useAuth();
-
+    const { user } = useAuth();
     const [chartData, setChartData] = useState<any[]>([]);
     const [error, setError] = useState<string | undefined>();
     const [selectedLine, setSelectedLine] = useState<ChartMetric | null>(null);
@@ -81,138 +80,138 @@ const ProgressScreen = () => {
         setViewMode(prev => (prev === 'weekly' ? 'alltime' : 'weekly'));
     };
 
-    useFocusEffect(
-        useCallback(() => {
-            if (loading || !user) return;
+    useFocusEffect(useCallback(() => {
 
-            const fetchData = async () => {
-                let startDate: string;
-                let endDate: string;
+        async function fetchData() {
+            if (!user?.id) return;
 
-                // Step 1: Get active course_id for this user
-                const { data: userCourse, error: userCourseError } = await supabase
-                    .from('user_courses')
-                    .select('course_id')
-                    .eq('user_id', user.id)
-                    .eq('is_active', true)
-                    .single();
+            let startDate: string;
+            let endDate: string;
 
-                if (userCourseError || !userCourse?.course_id) {
-                    setError('Could not fetch user\'s active course.');
-                    return;
-                }
+            // Step 1: Get active course_id for this user
+            const { data: userCourse, error: userCourseError } = await supabase
+                .from('user_courses')
+                .select('course_id')
+                .eq('user_id', user.id)
+                .eq('is_active', true)
+                .single();
 
-                const courseId = userCourse.course_id;
+            if (userCourseError || !userCourse?.course_id) {
+                setError('Could not fetch user\'s active course.');
+                return;
+            }
 
-                // Step 2: Get start_date for that course
-                const { data: courseData, error: courseError } = await supabase
-                    .from('courses')
-                    .select('start_date')
-                    .eq('course_id', courseId)
-                    .single();
+            const courseId = userCourse.course_id;
 
-                if (courseError || !courseData?.start_date) {
-                    setError('Could not fetch course start date.');
-                    return;
-                }
+            // Step 2: Get start_date for that course
+            const { data: courseData, error: courseError } = await supabase
+                .from('courses')
+                .select('start_date')
+                .eq('course_id', courseId)
+                .single();
 
-                if (viewMode === 'weekly') {
-                    startDate = format(subDays(new Date(), 7), 'yyyy-MM-dd');
-                } else {
-                    startDate = courseData.start_date;
-                }
+            if (courseError || !courseData?.start_date) {
+                setError('Could not fetch course start date.');
+                return;
+            }
 
-                endDate = format(new Date(), 'yyyy-MM-dd');
+            if (viewMode === 'weekly') {
+                startDate = format(subDays(new Date(), 7), 'yyyy-MM-dd');
+            } else {
+                startDate = courseData.start_date;
+            }
 
-                // Step 3: Fetch task_types for scaling
-                const { data: taskTypesData, error: taskTypesError } = await supabase
-                    .from('task_types')
-                    .select('name, minimal_amount');
+            endDate = format(new Date(), 'yyyy-MM-dd');
 
-                if (taskTypesError) {
-                    setError(taskTypesError.message);
-                    return;
-                }
+            // Step 3: Fetch task_types for scaling
+            const { data: taskTypesData, error: taskTypesError } = await supabase
+                .from('task_types')
+                .select('name, minimal_amount');
 
-                const minimalAmounts: Record<string, number> = {};
-                taskTypesData.forEach(task => {
-                    minimalAmounts[task.name] = task.minimal_amount;
-                });
+            if (taskTypesError) {
+                setError(taskTypesError.message);
+                return;
+            }
 
-                const keyMapping = {
-                    asks: 'ask',
-                    follow_ups: 'follow_up',
-                    action_promises: 'action_promise',
-                    open_houses: 'open_house',
-                    handwritten_cards: 'handwritten_card',
-                    exercises: 'exercise',
-                };
+            const minimalAmounts: Record<string, number> = {};
+            taskTypesData.forEach(task => {
+                minimalAmounts[task.name] = task.minimal_amount;
+            });
 
-                const scalingFactors = {
-                    asks: 1,
-                    follow_ups: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.follow_ups],
-                    open_houses: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.open_houses],
-                    handwritten_cards: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.handwritten_cards],
-                    action_promises: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.action_promises],
-                    exercises: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.exercises],
-                };
-
-                // Step 4: Fetch chart data
-                const { data, error: rpcError } = await supabase.rpc(
-                    'get_daily_task_counts_all_types_in_range',
-                    {
-                        uid: user.id,
-                        _course_id: courseId,
-                        start_date: startDate,
-                        end_date: endDate,
-                    }
-                );
-
-                if (rpcError) {
-                    setError(rpcError.message);
-                    return;
-                }
-
-                // Step 5: Process for graphing
-                let running = {
-                    asks: 0,
-                    follow_ups: 0,
-                    open_houses: 0,
-                    handwritten_cards: 0,
-                    action_promises: 0,
-                    exercises: 0,
-                    gross_revenue: 0,
-                };
-                const baselineDaily = minimalAmounts[keyMapping.asks] / 7;
-
-                const transformed = (data as RowWithAllTypes[]).map((row, index) => {
-                    running.asks += row.asks;
-                    running.follow_ups += row.follow_ups;
-                    running.open_houses += row.open_houses;
-                    running.handwritten_cards += row.handwritten_cards;
-                    running.action_promises += row.action_promises;
-                    running.exercises += row.exercises;
-                    running.gross_revenue += row.gross_revenue;
-
-                    return {
-                        x: new Date(row.day),
-                        asks: running.asks * scalingFactors.asks,
-                        follow_ups: running.follow_ups * scalingFactors.follow_ups,
-                        open_houses: running.open_houses * scalingFactors.open_houses,
-                        handwritten_cards: running.handwritten_cards * scalingFactors.handwritten_cards,
-                        action_promises: running.action_promises * scalingFactors.action_promises,
-                        exercises: running.exercises * scalingFactors.exercises,
-                        gross_revenue: running.gross_revenue,
-                        baseline: baselineDaily * (index + 1),
-                    };
-                });
-
-                setChartData(transformed);
+            const keyMapping = {
+                asks: 'ask',
+                follow_ups: 'follow_up',
+                action_promises: 'action_promise',
+                open_houses: 'open_house',
+                handwritten_cards: 'handwritten_card',
+                exercises: 'exercise',
             };
 
-            fetchData();
-        }, [loading, user, viewMode])
-    );
+            const scalingFactors = {
+                asks: 1,
+                follow_ups: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.follow_ups],
+                open_houses: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.open_houses],
+                handwritten_cards: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.handwritten_cards],
+                action_promises: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.action_promises],
+                exercises: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.exercises],
+            };
+
+            // Step 4: Fetch chart data
+            const { data, error: rpcError } = await supabase.rpc(
+                'get_daily_task_counts_all_types_in_range',
+                {
+                    uid: user.id,
+                    _course_id: courseId,
+                    start_date: startDate,
+                    end_date: endDate,
+                }
+            );
+
+            if (rpcError) {
+                setError(rpcError.message);
+                return;
+            }
+
+            // Step 5: Process for graphing
+            let running = {
+                asks: 0,
+                follow_ups: 0,
+                open_houses: 0,
+                handwritten_cards: 0,
+                action_promises: 0,
+                exercises: 0,
+                gross_revenue: 0,
+            };
+            const baselineDaily = minimalAmounts[keyMapping.asks] / 7;
+
+            const transformed = (data as RowWithAllTypes[]).map((row, index) => {
+                running.asks += row.asks;
+                running.follow_ups += row.follow_ups;
+                running.open_houses += row.open_houses;
+                running.handwritten_cards += row.handwritten_cards;
+                running.action_promises += row.action_promises;
+                running.exercises += row.exercises;
+                running.gross_revenue += row.gross_revenue;
+
+                return {
+                    x: new Date(row.day),
+                    asks: running.asks * scalingFactors.asks,
+                    follow_ups: running.follow_ups * scalingFactors.follow_ups,
+                    open_houses: running.open_houses * scalingFactors.open_houses,
+                    handwritten_cards: running.handwritten_cards * scalingFactors.handwritten_cards,
+                    action_promises: running.action_promises * scalingFactors.action_promises,
+                    exercises: running.exercises * scalingFactors.exercises,
+                    gross_revenue: running.gross_revenue,
+                    baseline: baselineDaily * (index + 1),
+                };
+            });
+
+            setChartData(transformed);
+        }
+
+        fetchData();
+        return () => { };
+    }, [user, viewMode]));
 
 
     if (!font) {

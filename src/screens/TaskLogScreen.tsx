@@ -22,7 +22,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import PopoverTooltip from '../components/PopoverTooltip';
 import { TouchableWithoutFeedback } from 'react-native';
-import { useAuth } from '../contexts/AuthContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const guidelineBaseWidth = 375;
@@ -86,44 +85,41 @@ const TaskLogScreen = () => {
     const [snackbarMessage, setSnackbarMessage] = useState('');
     const scrollViewRef = useRef<ScrollView>(null);
     const [courseId, setCourseId] = useState<string | null>(null);
-    const { user, loading } = useAuth();
 
     useEffect(() => {
-        if (loading || !user) return;
-
-        const runInitialFetches = async () => {
-            const fetchTaskTypes = async () => {
-                const { data, error } = await supabase.from('task_types').select('*');
-                if (error) {
-                    console.error('Error fetching task types:', error);
-                } else if (data) {
-                    setTaskTypes(data);
-                    if (data.length > 0) {
-                        setTaskTypeId(data[0].task_type_id);
-                    }
+        const fetchTaskTypes = async () => {
+            const { data, error } = await supabase.from('task_types').select('*');
+            if (error) {
+                console.error('Error fetching task types:', error);
+            } else if (data) {
+                setTaskTypes(data);
+                if (data.length > 0) {
+                    setTaskTypeId(data[0].task_type_id);
                 }
-            };
-
-            const fetchCourseId = async () => {
-                const { data: userCourse, error } = await supabase
-                    .from('user_courses')
-                    .select('course_id')
-                    .eq('user_id', user.id)
-                    .eq('is_active', true)
-                    .single();
-
-                if (!error && userCourse) {
-                    setCourseId(userCourse.course_id);
-                } else {
-                    console.error("Could not fetch active course_id", error?.message);
-                }
-            };
-
-            await fetchTaskTypes();
-            await fetchCourseId();
+            }
         };
 
-        runInitialFetches();
+        const fetchCourseId = async () => {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const uid = sessionData?.session?.user?.id;
+            if (!uid) return;
+
+            const { data: userCourse, error } = await supabase
+                .from('user_courses')
+                .select('course_id')
+                .eq('user_id', uid)
+                .eq('is_active', true)
+                .single();
+
+            if (!error && userCourse) {
+                setCourseId(userCourse.course_id);
+            } else {
+                console.error("Could not fetch active course_id", error?.message);
+            }
+        };
+
+        fetchTaskTypes();
+        fetchCourseId();
 
         const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
             scrollViewRef.current?.scrollTo({ y: 0, animated: true });
@@ -132,8 +128,7 @@ const TaskLogScreen = () => {
         return () => {
             keyboardDidHideListener.remove();
         };
-    }, [loading, user]);
-
+    }, []);
 
 
     const formatTaskName = (name: string) =>

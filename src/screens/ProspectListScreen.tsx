@@ -466,11 +466,10 @@ const AgentModal: React.FC<AgentModalProps> = ({
 
 // ——————————————————————————————————————
 // Main ContactsScreen
-// Main ContactsScreen
 const ContactsScreen = () => {
-    const { user, loading } = useAuth(); // auth session loading
+    const { user } = useAuth();
     const [contacts, setContacts] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(true); // local fetch state
+    const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedType, setSelectedType] = useState<string>('Prospect');
 
@@ -492,12 +491,15 @@ const ContactsScreen = () => {
         setSnackbarVisible(true);
     };
 
-    // Fetch contacts (waits for auth loading to complete)
+    // Fetch contacts
     useEffect(() => {
-        if (loading || !user) return;
-
         const fetchContacts = async () => {
-            setIsLoading(true);
+            if (!user) {
+                setError('User not logged in');
+                setLoading(false);
+                return;
+            }
+            setLoading(true);
 
             if (selectedType === 'Agent') {
                 const { data, error } = await supabase.rpc('get_agents_by_user', { uid: user.id });
@@ -512,16 +514,14 @@ const ContactsScreen = () => {
                 else setContacts(data);
             }
 
-            setIsLoading(false);
+            setLoading(false);
         };
-
         fetchContacts();
-    }, [loading, user, selectedType]);
+    }, [user, selectedType]);
 
     const refreshContacts = async () => {
         if (!user) return;
-        setIsLoading(true);
-
+        setLoading(true);
         if (selectedType === 'Agent') {
             const { data, error } = await supabase.rpc('get_agents_by_user', { uid: user.id });
             if (error) setError(error.message);
@@ -534,10 +534,8 @@ const ContactsScreen = () => {
             if (error) setError(error.message);
             else setContacts(data);
         }
-
-        setIsLoading(false);
+        setLoading(false);
     };
-
 
     // Handlers...
     const handleClientEdit = (c: any) => { setSelectedClient(c); setEditClientModalVisible(true); };

@@ -85,7 +85,7 @@ const TaskProgressBar = ({
 };
 
 const HomeScreen = () => {
-    const { user, loading } = useAuth();
+    const { user } = useAuth();
     const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([]);
     const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
     const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
@@ -162,38 +162,34 @@ const HomeScreen = () => {
 
     useFocusEffect(
         useCallback(() => {
-            if (loading || !user) return;
+            if (!user) return;
 
-            const runAllFetches = async () => {
-                await fetchWeeklyData();
-
-                const fetchTaskTypes = async () => {
-                    const { data, error } = await supabase.from('task_types').select('*');
-                    if (!error && data) setTaskTypes(data);
-                };
-                await fetchTaskTypes();
-
-                const fetchPipelineSummary = async () => {
-                    const { data, error } = await supabase.rpc('get_clients_by_client_type', {
-                        uid: user.id,
-                        client_type_name: 'Pipeline',
-                    });
-                    if (!error && data) {
-                        const count = data.length;
-                        const totalRevenue = data.reduce(
-                            (sum: number, c: any) => sum + (c.pipeline_revenue || 0),
-                            0
-                        );
-                        setPipelineSummary({ count, totalRevenue });
-                    }
-                };
-                await fetchPipelineSummary();
+            fetchWeeklyData();
+            const fetchTaskTypes = async () => {
+                const { data, error } = await supabase
+                    .from('task_types')
+                    .select('*');
+                if (!error && data) setTaskTypes(data);
             };
+            fetchTaskTypes();
 
-            runAllFetches();
-        }, [loading, user])
+            const fetchPipelineSummary = async () => {
+                const { data, error } = await supabase.rpc(
+                    'get_clients_by_client_type',
+                    { uid: user.id, client_type_name: 'Pipeline' }
+                );
+                if (!error && data) {
+                    const count = data.length;
+                    const totalRevenue = data.reduce(
+                        (sum: number, c: any) => sum + (c.pipeline_revenue || 0),
+                        0
+                    );
+                    setPipelineSummary({ count, totalRevenue });
+                }
+            };
+            fetchPipelineSummary();
+        }, [user])
     );
-
 
     const currentWeek = weeklyData[currentWeekIndex];
 
