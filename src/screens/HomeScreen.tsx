@@ -85,7 +85,7 @@ const TaskProgressBar = ({
 };
 
 const HomeScreen = () => {
-    const { user, loading, initializing } = useAuth(); // Add loading and initializing
+    const { user } = useAuth();
     const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([]);
     const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
     const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
@@ -100,96 +100,96 @@ const HomeScreen = () => {
     const [snackbarMessage, setSnackbarMessage] = useState('');
     const headerHeight = useHeaderHeight()
     const [courseId, setCourseId] = useState<string | null>(null);
-
     const fetchWeeklyData = async () => {
         if (!user) return;
+
+        // Step 1: Get the user's active course_id
         const { data: userCourse, error: userCourseError } = await supabase
             .from('user_courses')
             .select('course_id')
             .eq('user_id', user.id)
             .eq('is_active', true)
             .single();
+
         if (userCourseError || !userCourse) {
             console.error('Error fetching user course:', userCourseError?.message);
             return;
         }
+
         const courseId = userCourse.course_id;
         setCourseId(courseId);
+
+        // Step 2: Get the start_date from the courses table
         const { data: courseData, error: courseError } = await supabase
             .from('courses')
             .select('start_date')
             .eq('course_id', courseId)
             .single();
+
         if (courseError || !courseData) {
             console.error('Error fetching course start_date:', courseError?.message);
             return;
         }
+
         const startDateStr = courseData.start_date;
+
+        // Step 3: Fetch the weekly task counts
         const { data, error } = await supabase.rpc('get_weekly_task_counts', {
-            course_id: courseId,
+            _course_id: courseId,
             uid: user.id,
         });
+
         if (error) {
             console.error('Error fetching weekly task counts:', error);
             return;
         }
+
         setWeeklyData(data);
+
+        // Step 4: Calculate the current week index
         if (startDateStr && data.length > 0) {
             const startDate = new Date(startDateStr);
             const today = new Date();
             const msPerWeek = 1000 * 60 * 60 * 24 * 7;
+
             const weeksSinceStart = Math.floor((today.getTime() - startDate.getTime()) / msPerWeek);
             const clampedWeekIndex = Math.min(Math.max(0, weeksSinceStart), data.length - 1);
             setCurrentWeekIndex(clampedWeekIndex);
         }
     };
 
+
+
     useFocusEffect(
         useCallback(() => {
-            // Wait for both auth initialization and ensure we have a user
-            if (initializing || loading || !user) return;
+            if (!user) return;
 
-            const runAllFetches = async () => {
-                await fetchWeeklyData();
-
-                const fetchTaskTypes = async () => {
-                    const { data, error } = await supabase
-                        .from('task_types')
-                        .select('*');
-                    if (!error && data) setTaskTypes(data);
-                };
-                await fetchTaskTypes();
-
-                const fetchPipelineSummary = async () => {
-                    const { data, error } = await supabase.rpc(
-                        'get_clients_by_client_type',
-                        { uid: user.id, client_type_name: 'Pipeline' }
-                    );
-                    if (!error && data) {
-                        const count = data.length;
-                        const totalRevenue = data.reduce(
-                            (sum: number, c: any) => sum + (c.pipeline_revenue || 0),
-                            0
-                        );
-                        setPipelineSummary({ count, totalRevenue });
-                    }
-                };
-                await fetchPipelineSummary();
+            fetchWeeklyData();
+            const fetchTaskTypes = async () => {
+                const { data, error } = await supabase
+                    .from('task_types')
+                    .select('*');
+                if (!error && data) setTaskTypes(data);
             };
+            fetchTaskTypes();
 
-            runAllFetches();
-        }, [initializing, loading, user]) // Updated dependencies
+            const fetchPipelineSummary = async () => {
+                const { data, error } = await supabase.rpc(
+                    'get_clients_by_client_type',
+                    { uid: user.id, client_type_name: 'Pipeline' }
+                );
+                if (!error && data) {
+                    const count = data.length;
+                    const totalRevenue = data.reduce(
+                        (sum: number, c: any) => sum + (c.pipeline_revenue || 0),
+                        0
+                    );
+                    setPipelineSummary({ count, totalRevenue });
+                }
+            };
+            fetchPipelineSummary();
+        }, [user])
     );
-
-    // Add loading state handling
-    if (initializing) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                {/* Replace with your loading component */}
-                <Text>Loading...</Text>
-            </View>
-        );
-    }
 
     const currentWeek = weeklyData[currentWeekIndex];
 
@@ -227,7 +227,7 @@ const HomeScreen = () => {
     const customComponentTheme = { ...DefaultTheme, roundness: 4 };
 
     return (
-        <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
+        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
             <View style={styles.screen}>
                 {/* PopoverTooltip is now absolutely positioned */}
                 <PopoverTooltip

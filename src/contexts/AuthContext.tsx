@@ -8,7 +8,6 @@ interface AuthProviderProps {
 interface AuthContextType {
     user: any;
     loading: boolean;
-    initializing: boolean; // Add this line
     profile: any;
     refreshProfile: () => Promise<void>;
 }
@@ -16,7 +15,6 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
     user: null,
     loading: true,
-    initializing: true, // Add this line
     profile: null,
     refreshProfile: async () => { },
 });
@@ -25,7 +23,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [user, setUser] = useState<any>(null);
     const [profile, setProfile] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [initializing, setInitializing] = useState(true); // Add this line
 
     const fetchProfile = async (userId: string) => {
         const { data: userProfile, error } = await supabase
@@ -33,6 +30,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             .select('*')
             .eq('id', userId)
             .single();
+
         if (!error) {
             console.log('Fetched profile:', userProfile);
             setProfile(userProfile);
@@ -49,56 +47,63 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     useEffect(() => {
-        // Simplified initialization
-        const initializeAuth = async () => {
-            try {
-                // Get the current session from storage
-                const { data: { session } } = await supabase.auth.getSession();
+        let resolved = false;
 
-                if (session?.user) {
-                    setUser(session.user);
-                    await fetchProfile(session.user.id);
-                } else {
-                    setUser(null);
-                    setProfile(null);
-                }
-            } catch (error) {
-                console.error('Error initializing auth:', error);
-                setUser(null);
-                setProfile(null);
-            } finally {
-                setInitializing(false); // Session restoration complete
+        const finish = () => {
+            if (!resolved) {
                 setLoading(false);
+                resolved = true;
             }
         };
 
-        // Run initialization
-        initializeAuth();
+        const init = async () => {
+            // Call getSession to trigger internal restoration
+            const { data: sessionData } = await supabase.auth.getSession();
+            const session = sessionData?.session;
 
-        // Listen for auth state changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (event, session) => {
-                const currentUser = session?.user ?? null;
-                setUser(currentUser);
-
-                if (currentUser) {
-                    await fetchProfile(currentUser.id);
-                } else {
-                    setProfile(null);
-                }
-
-                setLoading(false);
-                // Don't set initializing to false here - only during initial load
+            if (session?.user) {
+                setUser(session.user);
+                await fetchProfile(session.user.id);
+                finish();
+            } else {
+                // Attempt manual refresh after slight delay
+                setTimeout(async () => {
+                    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+                    if (refreshed?.session?.user) {
+                        setUser(refreshed.session.user);
+                        await fetchProfile(refreshed.session.user.id);
+                    } else {
+                        console.warn("Session refresh failed or returned null user:", refreshError?.message);
+                    }
+                    finish();
+                }, 1000); // short delay to let onAuthStateChange happen if it's going to
             }
-        );
+        };
+
+        const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            const currentUser = session?.user ?? null;
+            setUser(currentUser);
+            if (currentUser) await fetchProfile(currentUser.id);
+            else setProfile(null);
+            finish();
+        });
+
+        init();
+
+        const fallbackTimeout = setTimeout(() => {
+            console.warn("Auth fallback timeout triggered.");
+            finish();
+        }, 8000); // max total wait
 
         return () => {
-            subscription.unsubscribe();
+            authListener.subscription.unsubscribe();
+            clearTimeout(fallbackTimeout);
         };
     }, []);
 
+
     return (
-        <AuthContext.Provider value={{ user, loading, initializing, profile, refreshProfile }}>
+        <AuthContext.Provider value={{ user, loading, profile, refreshProfile }}>
             {children}
         </AuthContext.Provider>
     );

@@ -52,7 +52,7 @@ interface LegendItem {
 }
 
 const ProgressScreen = () => {
-    const { user, loading, initializing } = useAuth(); // Add loading and initializing
+    const { user } = useAuth();
     const [chartData, setChartData] = useState<any[]>([]);
     const [error, setError] = useState<string | undefined>();
     const [selectedLine, setSelectedLine] = useState<ChartMetric | null>(null);
@@ -81,15 +81,14 @@ const ProgressScreen = () => {
     };
 
     useFocusEffect(useCallback(() => {
-        // Add the same check as HomeScreen
-        if (initializing || loading || !user) return;
 
         async function fetchData() {
-            // Remove the !user?.id check since we already check above
+            if (!user?.id) return;
+
             let startDate: string;
             let endDate: string;
 
-            // ... rest of your fetchData function stays exactly the same
+            // Step 1: Get active course_id for this user
             const { data: userCourse, error: userCourseError } = await supabase
                 .from('user_courses')
                 .select('course_id')
@@ -104,6 +103,7 @@ const ProgressScreen = () => {
 
             const courseId = userCourse.course_id;
 
+            // Step 2: Get start_date for that course
             const { data: courseData, error: courseError } = await supabase
                 .from('courses')
                 .select('start_date')
@@ -123,6 +123,7 @@ const ProgressScreen = () => {
 
             endDate = format(new Date(), 'yyyy-MM-dd');
 
+            // Step 3: Fetch task_types for scaling
             const { data: taskTypesData, error: taskTypesError } = await supabase
                 .from('task_types')
                 .select('name, minimal_amount');
@@ -155,6 +156,7 @@ const ProgressScreen = () => {
                 exercises: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.exercises],
             };
 
+            // Step 4: Fetch chart data
             const { data, error: rpcError } = await supabase.rpc(
                 'get_daily_task_counts_all_types_in_range',
                 {
@@ -170,6 +172,7 @@ const ProgressScreen = () => {
                 return;
             }
 
+            // Step 5: Process for graphing
             let running = {
                 asks: 0,
                 follow_ups: 0,
@@ -208,17 +211,7 @@ const ProgressScreen = () => {
 
         fetchData();
         return () => { };
-    }, [initializing, loading, user, viewMode])); // Updated dependencies
-
-    // Add loading state handling
-    if (initializing) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <Text>Loading...</Text>
-            </View>
-        );
-    }
-
+    }, [user, viewMode]));
 
 
     if (!font) {
@@ -238,7 +231,7 @@ const ProgressScreen = () => {
     }
 
     return (
-        <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
+        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
             <View style={[styles.screen, { paddingTop: headerHeight }]}>
                 <PopoverTooltip
                     tooltipText={

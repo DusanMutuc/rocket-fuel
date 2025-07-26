@@ -22,7 +22,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import PopoverTooltip from '../components/PopoverTooltip';
 import { TouchableWithoutFeedback } from 'react-native';
-import { useAuth } from '../contexts/AuthContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const guidelineBaseWidth = 375;
@@ -76,7 +75,6 @@ const WrapButton: React.FC<WrapButtonProps> = ({ onPress, label, selected, style
 
 
 const TaskLogScreen = () => {
-    const { user, loading, initializing } = useAuth(); // Add this line
     const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
     const [taskTypeId, setTaskTypeId] = useState<number | null>(null);
     const [amount, setAmount] = useState<number>(1);
@@ -89,9 +87,6 @@ const TaskLogScreen = () => {
     const [courseId, setCourseId] = useState<string | null>(null);
 
     useEffect(() => {
-        // Add the same check here
-        if (initializing || loading) return;
-
         const fetchTaskTypes = async () => {
             const { data, error } = await supabase.from('task_types').select('*');
             if (error) {
@@ -105,13 +100,14 @@ const TaskLogScreen = () => {
         };
 
         const fetchCourseId = async () => {
-            // Remove the getSession call and use the user from context
-            if (!user?.id) return;
+            const { data: sessionData } = await supabase.auth.getSession();
+            const uid = sessionData?.session?.user?.id;
+            if (!uid) return;
 
             const { data: userCourse, error } = await supabase
                 .from('user_courses')
                 .select('course_id')
-                .eq('user_id', user.id) // Use user from context
+                .eq('user_id', uid)
                 .eq('is_active', true)
                 .single();
 
@@ -132,16 +128,8 @@ const TaskLogScreen = () => {
         return () => {
             keyboardDidHideListener.remove();
         };
-    }, [initializing, loading, user]); // Add dependencies
+    }, []);
 
-    // Add loading state handling
-    if (initializing) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <Text>Loading...</Text>
-            </View>
-        );
-    }
 
     const formatTaskName = (name: string) =>
         name
@@ -197,19 +185,19 @@ const TaskLogScreen = () => {
     };
 
     const handleLogTask = async () => {
-        // Replace getSession call with user from context
-        if (!user) return showSnack('Not logged in');
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) return showSnack('Not logged in');
         if (!grossRevenue && taskTypeId === null) return showSnack('Select a task type');
         if (!grossRevenue && amount > 99) return showSnack('Amount cannot exceed 99');
         if (!courseId) return showSnack('No active course found');
 
         const { error } = await supabase.from('task_logs').insert([
             {
-                user_id: user.id, // Use user from context
+                user_id: session.user.id,
                 task_type_id: taskTypeId,
                 amount,
                 created_at: selectedDate.toISOString(),
-                course_id: courseId,
+                course_id: courseId, // Add course tracking
             },
         ]);
 
@@ -219,7 +207,7 @@ const TaskLogScreen = () => {
 
 
     return (
-        <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
+        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
             <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
                 <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
