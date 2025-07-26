@@ -741,7 +741,7 @@ const ContactsScreen = () => {
 
     // ——————————————————————————————————————
     return (
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
             <View style={styles.container}>
                 <PopoverTooltip tooltipText="Welcome to your Contacts Page! Manage and filter your contacts here." />
                 <PaperText style={styles.header}>Contacts Page</PaperText>

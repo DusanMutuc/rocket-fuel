@@ -390,7 +390,7 @@ const PipelineScreen = () => {
     if (error) return <Surface style={styles.center}><PaperText>Error: {error}</PaperText></Surface>;
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }} edges={['top', 'left', 'right']}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }} edges={['left', 'right']}>
             <View style={styles.container}>
                 <PopoverTooltip tooltipText="Welcome to your Pipeline Contacts screen! Here you can manage your pipeline contacts and add prospects to the pipeline." />
                 <PaperText style={styles.header}>Pipeline Contacts</PaperText>
