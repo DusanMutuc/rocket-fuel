@@ -1,16 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Dimensions, ScrollView } from 'react-native';
-import {
-    Text,
-    Button,
-    Surface,
-    ActivityIndicator,
-    Snackbar,
-} from 'react-native-paper';
+import { StyleSheet, View, Dimensions } from 'react-native';
+import { Text, Button, Surface, ActivityIndicator, Snackbar } from 'react-native-paper';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CartesianChart, Line, Area } from 'victory-native';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import { useFont } from '@shopify/react-native-skia';
 
 import { supabase } from '../lib/supabase';
@@ -23,347 +17,374 @@ const guidelineBaseWidth = 375;
 const scale = (size: number) => (SCREEN_WIDTH / guidelineBaseWidth) * size;
 
 type RowWithAllTypes = {
-    day: string;
-    asks: number;
-    follow_ups: number;
-    open_houses: number;
-    handwritten_cards: number;
-    action_promises: number;
-    exercises: number;
-    gross_revenue: number;
+  day: string;
+  asks: number;
+  follow_ups: number;
+  open_houses: number;
+  handwritten_cards: number;
+  action_promises: number;
+  exercises: number;
+  gross_revenue: number;
 };
 
 type ChartMetric =
-    | 'asks'
-    | 'follow_ups'
-    | 'action_promises'
-    | 'open_houses'
-    | 'handwritten_cards'
-    | 'exercises'
-    | 'gross_revenue'
-    | 'baseline';
+  | 'asks'
+  | 'follow_ups'
+  | 'action_promises'
+  | 'open_houses'
+  | 'handwritten_cards'
+  | 'exercises'
+  | 'gross_revenue'
+  | 'baseline';
 
 interface LegendItem {
-    key: Exclude<ChartMetric, 'baseline'>;
-    label: string;
-    color: string;
+  key: Exclude<ChartMetric, 'baseline'>;
+  label: string;
+  color: string;
 }
 
 const ProgressScreen = () => {
-    const { user } = useAuth();
-    const [chartData, setChartData] = useState<any[]>([]);
-    const [error, setError] = useState<string | undefined>();
-    const [selectedLine, setSelectedLine] = useState<ChartMetric | null>(null);
-    const [viewMode, setViewMode] = useState<'weekly' | 'alltime'>('weekly');
-    const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const { user } = useAuth();
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [error, setError] = useState<string | undefined>();
+  const [selectedLine, setSelectedLine] = useState<ChartMetric | null>(null);
+  const [viewMode, setViewMode] = useState<'weekly' | 'alltime'>('weekly');
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
 
-    const headerHeight = useHeaderHeight();
-    const font = useFont(require('../../assets/Fonts/SpaceMono-Regular.ttf'), 12);
+  const headerHeight = useHeaderHeight();
+  const font = useFont(require('../../assets/Fonts/SpaceMono-Regular.ttf'), 12);
 
-    const legendData: LegendItem[] = [
-        { key: 'asks', label: 'Asks', color: '#c71aad' },
-        { key: 'follow_ups', label: 'Follow-ups', color: '#149240' },
-        { key: 'action_promises', label: 'Action Promises', color: '#0782b2' },
-        { key: 'open_houses', label: 'Open Houses', color: '#fd2121' },
-        { key: 'handwritten_cards', label: 'Handwritten Cards', color: '#ef8c00' },
-        { key: 'exercises', label: 'Exercises', color: '#7631af' },
-        { key: 'gross_revenue', label: 'Gross Revenue', color: 'black' },
-    ];
+  const legendData: LegendItem[] = [
+    { key: 'asks', label: 'Asks', color: '#c71aad' },
+    { key: 'follow_ups', label: 'Follow-ups', color: '#149240' },
+    { key: 'action_promises', label: 'Action Promises', color: '#0782b2' },
+    { key: 'open_houses', label: 'Open Houses', color: '#fd2121' },
+    { key: 'handwritten_cards', label: 'Handwritten Cards', color: '#ef8c00' },
+    { key: 'exercises', label: 'Exercises', color: '#7631af' },
+    { key: 'gross_revenue', label: 'Gross Revenue', color: 'black' },
+  ];
 
-    const handleLegendPress = (key: ChartMetric) => {
-        setSelectedLine(selectedLine === key ? null : key);
-    };
+  const handleLegendPress = (key: ChartMetric) => {
+    setSelectedLine(selectedLine === key ? null : key);
+  };
 
-    const toggleViewMode = () => {
-        setViewMode(prev => (prev === 'weekly' ? 'alltime' : 'weekly'));
-    };
+  const toggleViewMode = () => {
+    setViewMode(prev => (prev === 'weekly' ? 'alltime' : 'weekly'));
+  };
 
-    useEffect(() => {
-        async function fetchData() {
-            if (!user?.id) return;
+  useEffect(() => {
+    async function fetchData() {
+      if (!user?.id) return;
 
-            let startDate: string;
-            let endDate: string;
+      setError(undefined);
 
-            if (viewMode === 'weekly') {
-                startDate = format(subDays(new Date(), 7), 'yyyy-MM-dd');
-                endDate = format(new Date(), 'yyyy-MM-dd');
-            } else {
-                const { data: course, error: courseError } = await supabase
-                    .from('courses')
-                    .select('start_date')
-                    .order('start_date', { ascending: false })
-                    .limit(1)
-                    .single();
+      // 1) active course_id
+      const { data: userCourse, error: userCourseError } = await supabase
+        .from('user_courses')
+        .select('course_id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single();
 
-                if (courseError || !course?.start_date) {
-                    setError('Error fetching course start date.');
-                    return;
-                }
+      if (userCourseError || !userCourse?.course_id) {
+        setError("Could not fetch user's active course.");
+        return;
+      }
 
-                startDate = course.start_date;
-                endDate = format(new Date(), 'yyyy-MM-dd');
-            }
+      const courseId = userCourse.course_id;
 
-            const { data: taskTypesData, error: taskTypesError } = await supabase
-                .from('task_types')
-                .select('name, minimal_amount');
+      // 2) course start_date + duration_weeks
+      const { data: course, error: courseError } = await supabase
+        .from('courses')
+        .select('start_date, duration_weeks')
+        .eq('course_id', courseId)
+        .single();
 
-            if (taskTypesError) {
-                setError(taskTypesError.message);
-                return;
-            }
+      if (courseError || !course?.start_date) {
+        setError('Could not fetch course start date.');
+        return;
+      }
 
-            const minimalAmounts: Record<string, number> = {};
-            taskTypesData.forEach(task => {
-                minimalAmounts[task.name] = task.minimal_amount;
-            });
+      const courseStart = new Date(course.start_date);
+      courseStart.setHours(0, 0, 0, 0);
 
-            const keyMapping = {
-                asks: 'ask',
-                follow_ups: 'follow_up',
-                action_promises: 'action_promise',
-                open_houses: 'open_house',
-                handwritten_cards: 'handwritten_card',
-                exercises: 'exercise',
-            };
+      const weeks = typeof course.duration_weeks === 'number' ? course.duration_weeks : 12;
+      const courseEndExcl = new Date(courseStart);
+      courseEndExcl.setDate(courseEndExcl.getDate() + weeks * 7);
 
-            const scalingFactors = {
-                asks: 1,
-                follow_ups: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.follow_ups],
-                open_houses: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.open_houses],
-                handwritten_cards: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.handwritten_cards],
-                action_promises: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.action_promises],
-                exercises: minimalAmounts[keyMapping.asks] / minimalAmounts[keyMapping.exercises],
-            };
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-            const { data, error: rpcError } = await supabase.rpc('get_daily_task_counts_all_types_in_range', {
-                uid: user.id,
-                start_date: startDate,
-                end_date: endDate,
-            });
+      const effectiveEnd = new Date(Math.min(today.getTime(), courseEndExcl.getTime()));
 
-            if (rpcError) {
-                setError(rpcError.message);
-                return;
-            }
+      let startDateObj: Date;
 
-            let running = {
-                asks: 0,
-                follow_ups: 0,
-                open_houses: 0,
-                handwritten_cards: 0,
-                action_promises: 0,
-                exercises: 0,
-                gross_revenue: 0,
-            };
-            const baselineDaily = minimalAmounts[keyMapping.asks] / 7;
+      if (viewMode === 'alltime') {
+        startDateObj = courseStart;
+      } else {
+        const weeklyStart = new Date(effectiveEnd);
+        weeklyStart.setDate(weeklyStart.getDate() - 7);
+        startDateObj = new Date(Math.max(weeklyStart.getTime(), courseStart.getTime()));
+      }
 
-            const transformed = (data as RowWithAllTypes[]).map((row, index) => {
-                running.asks += row.asks;
-                running.follow_ups += row.follow_ups;
-                running.open_houses += row.open_houses;
-                running.handwritten_cards += row.handwritten_cards;
-                running.action_promises += row.action_promises;
-                running.exercises += row.exercises;
-                running.gross_revenue += row.gross_revenue;
+      const startDate = format(startDateObj, 'yyyy-MM-dd');
+      const endDate = format(effectiveEnd, 'yyyy-MM-dd');
 
-                return {
-                    x: new Date(row.day),
-                    asks: running.asks * scalingFactors.asks,
-                    follow_ups: running.follow_ups * scalingFactors.follow_ups,
-                    open_houses: running.open_houses * scalingFactors.open_houses,
-                    handwritten_cards: running.handwritten_cards * scalingFactors.handwritten_cards,
-                    action_promises: running.action_promises * scalingFactors.action_promises,
-                    exercises: running.exercises * scalingFactors.exercises,
-                    gross_revenue: running.gross_revenue,
-                    baseline: baselineDaily * (index + 1),
-                };
-            });
+      // 3) task_types for scaling
+      const { data: taskTypesData, error: taskTypesError } = await supabase
+        .from('task_types')
+        .select('name, minimal_amount');
 
-            setChartData(transformed);
-        }
+      if (taskTypesError) {
+        setError(taskTypesError.message);
+        return;
+      }
 
-        fetchData();
-    }, [user, viewMode]);
+      const minimalAmounts: Record<string, number> = {};
+      (taskTypesData ?? []).forEach(task => {
+        minimalAmounts[task.name] = task.minimal_amount;
+      });
 
-    if (!font) {
-        return (
-            <Surface style={styles.loaderContainer}>
-                <ActivityIndicator animating size="large" />
-            </Surface>
-        );
+      const keyMapping = {
+        asks: 'ask',
+        follow_ups: 'follow_up',
+        action_promises: 'action_promise',
+        open_houses: 'open_house',
+        handwritten_cards: 'handwritten_card',
+        exercises: 'exercise',
+      };
+
+      const askMin = minimalAmounts[keyMapping.asks] || 1;
+
+      const scalingFactors = {
+        asks: 1,
+        follow_ups: askMin / (minimalAmounts[keyMapping.follow_ups] || 1),
+        open_houses: askMin / (minimalAmounts[keyMapping.open_houses] || 1),
+        handwritten_cards: askMin / (minimalAmounts[keyMapping.handwritten_cards] || 1),
+        action_promises: askMin / (minimalAmounts[keyMapping.action_promises] || 1),
+        exercises: askMin / (minimalAmounts[keyMapping.exercises] || 1),
+      };
+
+      // 4) chart data (new RPC signature)
+      const { data, error: rpcError } = await supabase.rpc('get_daily_task_counts_all_types_in_range', {
+        uid: user.id,
+        _course_id: courseId,
+        start_date: startDate,
+        end_date: endDate,
+      });
+
+      if (rpcError) {
+        setError(rpcError.message);
+        return;
+      }
+
+      // 5) cumulative transform
+      let running = {
+        asks: 0,
+        follow_ups: 0,
+        open_houses: 0,
+        handwritten_cards: 0,
+        action_promises: 0,
+        exercises: 0,
+        gross_revenue: 0,
+      };
+
+      const baselineDaily = askMin / 7;
+
+      const transformed = (data as RowWithAllTypes[] ?? []).map((row, index) => {
+        running.asks += row.asks;
+        running.follow_ups += row.follow_ups;
+        running.open_houses += row.open_houses;
+        running.handwritten_cards += row.handwritten_cards;
+        running.action_promises += row.action_promises;
+        running.exercises += row.exercises;
+        running.gross_revenue += row.gross_revenue;
+
+        return {
+          x: new Date(row.day),
+          asks: running.asks * scalingFactors.asks,
+          follow_ups: running.follow_ups * scalingFactors.follow_ups,
+          open_houses: running.open_houses * scalingFactors.open_houses,
+          handwritten_cards: running.handwritten_cards * scalingFactors.handwritten_cards,
+          action_promises: running.action_promises * scalingFactors.action_promises,
+          exercises: running.exercises * scalingFactors.exercises,
+          gross_revenue: running.gross_revenue,
+          baseline: baselineDaily * (index + 1),
+        };
+      });
+
+      setChartData(transformed);
     }
 
-    if (error) {
-        return (
-            <Surface style={styles.loaderContainer}>
-                <Text style={{ color: 'red', padding: 20 }}>{error}</Text>
-            </Surface>
-        );
-    }
+    fetchData();
+  }, [user, viewMode]);
 
+  if (!font) {
     return (
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-            <View style={[styles.screen, { paddingTop: headerHeight }]}>
-                <PopoverTooltip
-                    tooltipText={
-                        "Welcome to your Progress Screen! Here you can view your daily progress trends, toggle between weekly and all-time views, and analyze your performance.\n\nThe red area is below the minimal threshold, so try to keep all your tasks above it!"
-                    }
-                />
-                <View style={styles.chartAndLegendContainer}>
-                    <View style={styles.flexChartWrapper}>
-                        {chartData.length > 0 && (
-                            <>
-                                {selectedLine === 'gross_revenue' ? (
-                                    <CartesianChart
-                                        axisOptions={{
-                                            font,
-                                            tickCount: { x: 3, y: 10 },
-                                            formatXLabel: x => format(x, 'MM/dd'),
-                                        }}
-                                        data={chartData}
-                                        xKey="x"
-                                        yKeys={['gross_revenue']}
-                                    >
-                                        {({ points }) => (
-                                            <Line
-                                                points={(points as any)['gross_revenue']}
-                                                color="#1d1d1d"
-                                                strokeWidth={5}
-                                                animate={{ type: 'timing', duration: 300 }}
-                                                curveType="catmullRom100"
-                                            />
-                                        )}
-                                    </CartesianChart>
-                                ) : (
-                                    <CartesianChart
-                                        axisOptions={{
-                                            font,
-                                            tickCount: { x: 3, y: 10 },
-                                            formatXLabel: x => format(x, 'MM/dd'),
-                                        }}
-                                        data={chartData}
-                                        xKey="x"
-                                        yKeys={[
-                                            'asks',
-                                            'follow_ups',
-                                            'action_promises',
-                                            'open_houses',
-                                            'handwritten_cards',
-                                            'exercises',
-                                            'baseline',
-                                        ]}
-                                    >
-                                        {({ points, chartBounds }) => (
-                                            <>
-                                                <Area
-                                                    points={points.baseline}
-                                                    color="#A30000"
-                                                    opacity={0.15}
-                                                    y0={chartBounds.bottom}
-                                                />
-                                                {legendData
-                                                    .filter(item => item.key !== 'gross_revenue')
-                                                    .map(item => (
-                                                        <Line
-                                                            key={item.key}
-                                                            points={(points as any)[item.key]}
-                                                            color={
-                                                                selectedLine === null || selectedLine === item.key
-                                                                    ? item.color
-                                                                    : 'lightgray'
-                                                            }
-                                                            strokeWidth={
-                                                                selectedLine === null
-                                                                    ? 3
-                                                                    : selectedLine === item.key
-                                                                        ? 5
-                                                                        : 2
-                                                            }
-                                                            animate={{ type: 'timing', duration: 300 }}
-                                                            curveType="linear"
-                                                        />
-                                                    ))}
-                                            </>
-                                        )}
-                                    </CartesianChart>
-                                )}
-                            </>
-                        )}
-                    </View>
-
-                    <View style={styles.legendContainer}>
-                        <Legend
-                            items={legendData}
-                            onPress={handleLegendPress}
-                            selected={selectedLine}
-                        />
-                    </View>
-                </View>
-
-                <Button
-                    mode="contained"
-                    onPress={toggleViewMode}
-                    style={styles.toggleButton}
-                >
-                    {viewMode === 'weekly' ? 'Switch to All Time' : 'Switch to Weekly'}
-                </Button>
-
-                <Snackbar
-                    visible={snackbarVisible}
-                    onDismiss={() => setSnackbarVisible(false)}
-                    duration={3000}
-                >
-                    {error}
-                </Snackbar>
-            </View>
-        </SafeAreaView>
+      <Surface style={styles.loaderContainer}>
+        <ActivityIndicator animating size="large" />
+      </Surface>
     );
+  }
+
+  if (error) {
+    return (
+      <Surface style={styles.loaderContainer}>
+        <Text style={{ color: 'red', padding: 20 }}>{error}</Text>
+      </Surface>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <View style={[styles.screen, { paddingTop: headerHeight }]}>
+        <PopoverTooltip
+          tooltipText={
+            "Welcome to your Progress Screen! Here you can view your daily progress trends, toggle between weekly and all-time views, and analyze your performance.\n\nThe red area is below the minimal threshold, so try to keep all your tasks above it!"
+          }
+        />
+
+        <View style={styles.chartAndLegendContainer}>
+          <View style={styles.flexChartWrapper}>
+            {chartData.length > 0 && (
+              <>
+                {selectedLine === 'gross_revenue' ? (
+                  <CartesianChart
+                    axisOptions={{
+                      font,
+                      tickCount: { x: 3, y: 10 },
+                      formatXLabel: x => format(x, 'MM/dd'),
+                    }}
+                    data={chartData}
+                    xKey="x"
+                    yKeys={['gross_revenue']}
+                  >
+                    {({ points }) => (
+                      <Line
+                        points={(points as any)['gross_revenue']}
+                        color="#1d1d1d"
+                        strokeWidth={5}
+                        animate={{ type: 'timing', duration: 300 }}
+                        curveType="catmullRom100"
+                      />
+                    )}
+                  </CartesianChart>
+                ) : (
+                  <CartesianChart
+                    axisOptions={{
+                      font,
+                      tickCount: { x: 3, y: 10 },
+                      formatXLabel: x => format(x, 'MM/dd'),
+                    }}
+                    data={chartData}
+                    xKey="x"
+                    yKeys={[
+                      'asks',
+                      'follow_ups',
+                      'action_promises',
+                      'open_houses',
+                      'handwritten_cards',
+                      'exercises',
+                      'baseline',
+                    ]}
+                  >
+                    {({ points, chartBounds }) => (
+                      <>
+                        <Area
+                          points={points.baseline}
+                          color="#A30000"
+                          opacity={0.15}
+                          y0={chartBounds.bottom}
+                        />
+                        {legendData
+                          .filter(item => item.key !== 'gross_revenue')
+                          .map(item => (
+                            <Line
+                              key={item.key}
+                              points={(points as any)[item.key]}
+                              color={
+                                selectedLine === null || selectedLine === item.key
+                                  ? item.color
+                                  : 'lightgray'
+                              }
+                              strokeWidth={
+                                selectedLine === null ? 3 : selectedLine === item.key ? 5 : 2
+                              }
+                              animate={{ type: 'timing', duration: 300 }}
+                              curveType="linear"
+                            />
+                          ))}
+                      </>
+                    )}
+                  </CartesianChart>
+                )}
+              </>
+            )}
+          </View>
+
+          <View style={styles.legendContainer}>
+            <Legend items={legendData} onPress={handleLegendPress} selected={selectedLine} />
+          </View>
+        </View>
+
+        <Button mode="contained" onPress={toggleViewMode} style={styles.toggleButton}>
+          {viewMode === 'weekly' ? 'Switch to All Time' : 'Switch to Weekly'}
+        </Button>
+
+        <Snackbar
+          visible={snackbarVisible}
+          onDismiss={() => setSnackbarVisible(false)}
+          duration={3000}
+        >
+          {error}
+        </Snackbar>
+      </View>
+    </SafeAreaView>
+  );
 };
 
 const styles = StyleSheet.create({
-    safeArea: {
-        flex: 1,
-        backgroundColor: '#f5f5f5',
-    },
-    screen: {
-        flex: 1,
-        marginTop: -50,
-    },
-    chartAndLegendContainer: {
-        flex: 1,
-        justifyContent: 'space-between',
-        paddingHorizontal: scale(16),
-        paddingBottom: scale(20),
-    },
-    flexChartWrapper: {
-        flex: 1,
-        backgroundColor: '#fff',
-        padding: scale(5),
-        borderWidth: scale(1),
-        borderRadius: scale(20),
-        minHeight: scale(200),
-        marginTop: -40
-    },
-    legendContainer: {
-        marginTop: scale(20),
-        backgroundColor: '#fff',
-        borderColor: 'black',
-        borderWidth: scale(1),
-        borderRadius: scale(10),
-        padding: scale(10),
-    },
-    toggleButton: {
-        alignSelf: 'center',
-        width: '64%',
-        marginBottom: scale(16),
-    },
-    loaderContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  screen: {
+    flex: 1,
+    marginTop: -50,
+  },
+  chartAndLegendContainer: {
+    flex: 1,
+    justifyContent: 'space-between',
+    paddingHorizontal: scale(16),
+    paddingBottom: scale(20),
+  },
+  flexChartWrapper: {
+    flex: 1,
+    backgroundColor: '#fff',
+    padding: scale(5),
+    borderWidth: scale(1),
+    borderRadius: scale(20),
+    minHeight: scale(200),
+    marginTop: -40,
+  },
+  legendContainer: {
+    marginTop: scale(20),
+    backgroundColor: '#fff',
+    borderColor: 'black',
+    borderWidth: scale(1),
+    borderRadius: scale(10),
+    padding: scale(10),
+  },
+  toggleButton: {
+    alignSelf: 'center',
+    width: '64%',
+    marginBottom: scale(16),
+  },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
 
 export default ProgressScreen;
