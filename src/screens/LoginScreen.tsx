@@ -56,7 +56,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
         }
 
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: 'https://boisterous-bombolone-5f86bc.netlify.app/',
+            redirectTo: 'https://www.rocketfuelmembers.com/reset-password',
         });
 
         setSnackbarMessage(error ? error.message : 'Reset link sent. Check your inbox!');
