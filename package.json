@@ -40,7 +40,8 @@
     "react-native-view-shot": "^4.0.3",
     "react-native-walkthrough-tooltip": "^1.6.0",
     "victory-native": "^41.17.1",
-    "expo-dev-client": "~5.0.20"
+    "expo-dev-client": "~5.0.20",
+    "@react-native-async-storage/async-storage": "1.23.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
