@@ -51,9 +51,50 @@ interface LegendItem {
   color: string;
 }
 
+type ChartDataPoint = {
+  x: string;
+  asks: number;
+  follow_ups: number;
+  open_houses: number;
+  handwritten_cards: number;
+  action_promises: number;
+  exercises: number;
+  gross_revenue: number;
+  baseline: number;
+};
+
+const parseDateOnly = (value: string) => {
+  const [datePart] = value.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+
+  if (!year || !month || !day) {
+    return new Date(value);
+  }
+
+  return new Date(year, month - 1, day);
+};
+
+const formatChartDateLabel = (value: unknown) => {
+  const date = typeof value === 'string' ? parseDateOnly(value) : value instanceof Date ? value : null;
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return format(date, 'MM/dd');
+};
+
+const getShortXAxisTickValues = (dataLength: number) => {
+  if (dataLength <= 0 || dataLength >= 4) {
+    return undefined;
+  }
+
+  return Array.from({ length: dataLength }, (_, index) => index);
+};
+
 const ProgressScreen = () => {
   const { user } = useAuth();
-  const [chartData, setChartData] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [error, setError] = useState<string | undefined>();
   const [selectedLine, setSelectedLine] = useState<ChartMetric | null>(null);
   const [viewMode, setViewMode] = useState<'weekly' | 'alltime'>('weekly');
@@ -114,7 +155,7 @@ const ProgressScreen = () => {
           return;
         }
 
-        const courseStart = new Date(courseData.start_date);
+        const courseStart = parseDateOnly(courseData.start_date);
         courseStart.setHours(0, 0, 0, 0);
 
         const durationWeeks = courseData.duration_weeks ?? 12;
@@ -211,7 +252,7 @@ const ProgressScreen = () => {
           running.gross_revenue += row.gross_revenue;
 
           return {
-            x: new Date(row.day),
+            x: format(parseDateOnly(row.day), 'yyyy-MM-dd'),
             asks: running.asks * scalingFactors.asks,
             follow_ups: running.follow_ups * scalingFactors.follow_ups,
             open_houses: running.open_houses * scalingFactors.open_houses,
@@ -247,6 +288,15 @@ const ProgressScreen = () => {
     );
   }
 
+  const shortXAxisTickValues = getShortXAxisTickValues(chartData.length);
+  const xAxisOptions = {
+    font,
+    tickCount: 3,
+    formatXLabel: formatChartDateLabel,
+    tickValues: shortXAxisTickValues,
+  };
+  const yAxisOptions = [{ font, tickCount: 10 }];
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
       <View style={[styles.screen, { paddingTop: headerHeight }]}>
@@ -262,11 +312,8 @@ const ProgressScreen = () => {
               <>
                 {selectedLine === 'gross_revenue' ? (
                   <CartesianChart
-                    axisOptions={{
-                      font,
-                      tickCount: { x: 3, y: 10 },
-                      formatXLabel: x => format(x, 'MM/dd'),
-                    }}
+                    xAxis={xAxisOptions}
+                    yAxis={yAxisOptions}
                     data={chartData}
                     xKey="x"
                     yKeys={['gross_revenue']}
@@ -283,11 +330,8 @@ const ProgressScreen = () => {
                   </CartesianChart>
                 ) : (
                   <CartesianChart
-                    axisOptions={{
-                      font,
-                      tickCount: { x: 3, y: 10 },
-                      formatXLabel: x => format(x, 'MM/dd'),
-                    }}
+                    xAxis={xAxisOptions}
+                    yAxis={yAxisOptions}
                     data={chartData}
                     xKey="x"
                     yKeys={[
