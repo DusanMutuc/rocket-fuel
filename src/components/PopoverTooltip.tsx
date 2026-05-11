@@ -11,6 +11,7 @@ interface HeaderTooltipProps {
     containerStyle?: any; // Optional style override for the icon container
     popoverStyle?: any;   // Optional style override for the popover content
     offset?: number;      // Tooltip offset (default: -40)
+    absolute?: boolean;   // Use absolute screen positioning when rendering inside page content
 }
 
 const HeaderTooltip: React.FC<HeaderTooltipProps> = ({
@@ -20,6 +21,7 @@ const HeaderTooltip: React.FC<HeaderTooltipProps> = ({
     containerStyle,
     popoverStyle,
     offset = -40,
+    absolute = true,
 }) => {
     const { width, height } = useWindowDimensions();
     const insets = useSafeAreaInsets();
@@ -32,7 +34,8 @@ const HeaderTooltip: React.FC<HeaderTooltipProps> = ({
 
     const combinedContainerStyle = [
         styles.iconContainer,
-        { top: insets.top - 0, right: insets.right + 10 },
+        absolute && styles.absoluteIconContainer,
+        absolute && { top: insets.top, right: insets.right + 10 },
         containerStyle,
     ];
 
@@ -70,14 +73,15 @@ const HeaderTooltip: React.FC<HeaderTooltipProps> = ({
 
 const styles = StyleSheet.create({
     iconContainer: {
-        position: 'absolute',
-        // top and right now will be provided dynamically using safe area insets plus margin.
         width: 44,
         height: 44,
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 1000,
         elevation: 10,
+    },
+    absoluteIconContainer: {
+        position: 'absolute',
     },
     popover: {
         backgroundColor: 'white',

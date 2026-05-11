@@ -4,7 +4,6 @@ import { Picker } from '@react-native-picker/picker';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Client } from '../types/Client';
-import PopoverTooltip from '../components/PopoverTooltip';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Platform } from 'react-native';
 import {
@@ -392,7 +391,6 @@ const PipelineScreen = () => {
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }} edges={['left', 'right']}>
             <View style={styles.container}>
-                <PopoverTooltip tooltipText="Welcome to your Pipeline Contacts screen! Here you can manage your pipeline contacts and add prospects to the pipeline." />
                 <PaperText style={styles.header}>Pipeline Contacts</PaperText>
 
                 <FlatList

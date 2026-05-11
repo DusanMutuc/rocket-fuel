@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
   Dimensions,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import {
   Text,
@@ -20,10 +21,9 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useFocusEffect } from '@react-navigation/native';
-import PopoverTooltip from '../components/PopoverTooltip';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ScrollView } from 'react-native';
-import { useHeaderHeight } from '@react-navigation/elements';
+import HomeShareCard from '../components/HomeShareCard';
+import { isNativeImageSharingAvailable, shareViewAsImage } from '../lib/shareViewAsImage';
 
 interface WeeklyData {
   week_start: string;
@@ -86,7 +86,7 @@ const TaskProgressBar = ({
 };
 
 const HomeScreen = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([]);
   const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
   const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
@@ -99,8 +99,11 @@ const HomeScreen = () => {
   const [newWeeklyTotal, setNewWeeklyTotal] = useState<number>(0);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [isShareAvailable, setIsShareAvailable] = useState(false);
+  const [hasCheckedShareAvailability, setHasCheckedShareAvailability] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const shareCardRef = useRef<View | null>(null);
 
-  const headerHeight = useHeaderHeight();
   const [courseId, setCourseId] = useState<string | null>(null);
 
   const fetchWeeklyData = async () => {
@@ -192,7 +195,33 @@ const HomeScreen = () => {
     }, [user])
   );
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkShareAvailability = async () => {
+      try {
+        const available = await isNativeImageSharingAvailable();
+        if (isMounted) setIsShareAvailable(available);
+      } catch (error) {
+        console.error('Error checking share availability:', error);
+        if (isMounted) setIsShareAvailable(false);
+      } finally {
+        if (isMounted) setHasCheckedShareAvailability(true);
+      }
+    };
+
+    checkShareAvailability();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const currentWeek = weeklyData[currentWeekIndex];
+  const shareableTaskTypes = taskTypes.filter(
+    tt => !['gross revenue', 'gross_revenue'].includes(tt.name.toLowerCase())
+  );
+  const firstName = profile?.first_name ?? user?.user_metadata?.first_name ?? null;
 
   const getLoggedAmountForTask = (taskName: string): number => {
     if (!currentWeek) return 0;
@@ -200,6 +229,22 @@ const HomeScreen = () => {
     const key = keyBase.endsWith('s') ? keyBase : keyBase + 's';
     const val = (currentWeek as any)[key as TaskKey];
     return typeof val === 'number' ? val : 0;
+  };
+  const shareMetrics = currentWeek
+    ? shareableTaskTypes.map(tt => ({
+        id: tt.task_type_id,
+        label: formatTaskName(tt.name),
+        loggedAmount: getLoggedAmountForTask(tt.name),
+        minimalAmount: tt.minimal_amount,
+        optimalAmount: tt.optimal_amount,
+      }))
+    : [];
+  const canShareHomeImage = isShareAvailable && !!currentWeek && shareMetrics.length > 0;
+  const shareButtonLabel = isShareAvailable ? 'Share' : 'Unavailable';
+
+  const showSnackbar = (message: string) => {
+    setSnackbarMessage(message);
+    setSnackbarVisible(true);
   };
 
   const handleProgressPress = (taskType: TaskType) => {
@@ -220,10 +265,26 @@ const HomeScreen = () => {
       _course_id: courseId,
     });
 
-    setSnackbarMessage(error ? 'Error updating logs' : 'Weekly total updated successfully');
-    setSnackbarVisible(true);
+    showSnackbar(error ? 'Error updating logs' : 'Weekly total updated successfully');
     await fetchWeeklyData();
     setModalVisible(false);
+  };
+
+  const handleShareHome = async () => {
+    if (!canShareHomeImage) {
+      showSnackbar('Your home snapshot will be ready once this week loads.');
+      return;
+    }
+
+    try {
+      setIsSharing(true);
+      await shareViewAsImage(shareCardRef);
+    } catch (error) {
+      console.error('Error sharing home snapshot:', error);
+      showSnackbar('Unable to share your home snapshot right now.');
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   const customComponentTheme = { ...DefaultTheme, roundness: 4 };
@@ -231,20 +292,25 @@ const HomeScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <PopoverTooltip
-          tooltipText={
-            "Welcome to your Home Screen! Here you can:\n" +
-            "\u2022 track weekly tasks\n" +
-            "\u2022 adjust the quantities if needed\n" +
-            "\u2022 navigate between weeks.\n\n" +
-            "The red lines on some progression bars represent the minimal weekly amounts you should aim for!"
-          }
-        />
-
         <View style={styles.headerRow}>
           <Text variant="headlineSmall" style={styles.weekLabel}>
             Week {currentWeekIndex + 1}
           </Text>
+          {hasCheckedShareAvailability && (
+            <Button
+              mode="contained-tonal"
+              icon="share-variant"
+              loading={isSharing}
+              disabled={!canShareHomeImage || isSharing}
+              onPress={handleShareHome}
+              compact
+              style={styles.shareButton}
+              contentStyle={styles.shareButtonContent}
+              labelStyle={styles.shareButtonLabel}
+            >
+              {shareButtonLabel}
+            </Button>
+          )}
         </View>
 
         <ScrollView
@@ -254,30 +320,28 @@ const HomeScreen = () => {
         >
           <View style={styles.taskList}>
             {currentWeek &&
-              taskTypes
-                .filter(tt => !['gross revenue', 'gross_revenue'].includes(tt.name.toLowerCase()))
-                .map(tt => {
-                  const logged = getLoggedAmountForTask(tt.name);
-                  return (
-                    <TouchableOpacity
-                      key={tt.task_type_id}
-                      onPress={() => handleProgressPress(tt)}
-                    >
-                      <Card style={styles.progressContainer}>
-                        <Card.Content>
-                          <Text style={styles.label}>
-                            {formatTaskName(tt.name)}: {logged} / {tt.optimal_amount}
-                          </Text>
-                          <TaskProgressBar
-                            loggedAmount={logged}
-                            minimalAmount={tt.minimal_amount}
-                            optimalAmount={tt.optimal_amount}
-                          />
-                        </Card.Content>
-                      </Card>
-                    </TouchableOpacity>
-                  );
-                })}
+              shareableTaskTypes.map(tt => {
+                const logged = getLoggedAmountForTask(tt.name);
+                return (
+                  <TouchableOpacity
+                    key={tt.task_type_id}
+                    onPress={() => handleProgressPress(tt)}
+                  >
+                    <Card style={styles.progressContainer}>
+                      <Card.Content>
+                        <Text style={styles.label}>
+                          {formatTaskName(tt.name)}: {logged} / {tt.optimal_amount}
+                        </Text>
+                        <TaskProgressBar
+                          loggedAmount={logged}
+                          minimalAmount={tt.minimal_amount}
+                          optimalAmount={tt.optimal_amount}
+                        />
+                      </Card.Content>
+                    </Card>
+                  </TouchableOpacity>
+                );
+              })}
 
             <View style={{ height: scale(100) }} />
           </View>
@@ -360,6 +424,20 @@ const HomeScreen = () => {
         >
           {snackbarMessage}
         </Snackbar>
+
+        <View pointerEvents="none" style={styles.hiddenShareCardContainer}>
+          {currentWeek && shareMetrics.length > 0 && (
+            <View ref={shareCardRef} collapsable={false}>
+              <HomeShareCard
+                firstName={firstName}
+                weekNumber={currentWeekIndex + 1}
+                metrics={shareMetrics}
+                pipelineCount={pipelineSummary.count}
+                pipelineTotalRevenue={pipelineSummary.totalRevenue}
+              />
+            </View>
+          )}
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -407,7 +485,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    paddingHorizontal: scale(16),
     marginVertical: scale(5),
+  },
+  shareButton: {
+    position: 'absolute',
+    right: scale(16),
+    borderRadius: scale(16),
+  },
+  shareButtonContent: {
+    minHeight: scale(36),
+  },
+  shareButtonLabel: {
+    fontSize: scale(12),
+    fontWeight: '600',
   },
   progressContainer: {
     marginVertical: scale(4),
@@ -482,6 +574,11 @@ const styles = StyleSheet.create({
   dialogActions: {
     flexDirection: 'row',
     justifyContent: 'center',
+  },
+  hiddenShareCardContainer: {
+    position: 'absolute',
+    left: -9999,
+    top: 0,
   },
 });
 

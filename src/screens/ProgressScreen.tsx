@@ -15,7 +15,6 @@ import { useFont } from '@shopify/react-native-skia';
 
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import PopoverTooltip from '../components/PopoverTooltip';
 import Legend from '../components/Legend';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
@@ -300,12 +299,6 @@ const ProgressScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
       <View style={[styles.screen, { paddingTop: headerHeight }]}>
-        <PopoverTooltip
-          tooltipText={
-            "Welcome to your Progress Screen! Here you can view your daily progress trends, toggle between weekly and all-time views, and analyze your performance.\n\nThe red area is below the minimal threshold, so try to keep all your tasks above it!"
-          }
-        />
-
         <View style={styles.chartAndLegendContainer}>
           <View style={styles.flexChartWrapper}>
             {chartData.length > 0 && (
