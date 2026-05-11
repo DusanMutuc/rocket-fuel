@@ -54,6 +54,8 @@ const formatTaskName = (name: string): string =>
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const guidelineBaseWidth = 375;
 const scale = (size: number) => (SCREEN_WIDTH / guidelineBaseWidth) * size;
+const TOOLTIP_TRIGGER_WIDTH = 44;
+const HEADER_ACTION_GAP = scale(8);
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
@@ -502,7 +504,7 @@ const styles = StyleSheet.create({
   },
   shareButton: {
     position: 'absolute',
-    right: scale(16),
+    right: scale(16) + TOOLTIP_TRIGGER_WIDTH + HEADER_ACTION_GAP,
     borderRadius: scale(16),
   },
   shareButtonContent: {
