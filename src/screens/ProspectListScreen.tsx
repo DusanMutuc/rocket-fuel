@@ -22,7 +22,6 @@ import {
     IconButton,
     Snackbar,
 } from 'react-native-paper';
-import PopoverTooltip from '../components/PopoverTooltip';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ——————————————————————————————————————
@@ -743,7 +742,6 @@ const ContactsScreen = () => {
     return (
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
             <View style={styles.container}>
-                <PopoverTooltip tooltipText="Welcome to your Contacts Page! Manage and filter your contacts here." />
                 <PaperText style={styles.header}>Contacts Page</PaperText>
 
                 {/* Top picker, styled like Pipeline’s modal picker: */}

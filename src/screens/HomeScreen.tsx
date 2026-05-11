@@ -21,7 +21,6 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useFocusEffect } from '@react-navigation/native';
-import PopoverTooltip from '../components/PopoverTooltip';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import HomeShareCard from '../components/HomeShareCard';
 import { isNativeImageSharingAvailable, shareViewAsImage } from '../lib/shareViewAsImage';
@@ -54,8 +53,6 @@ const formatTaskName = (name: string): string =>
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const guidelineBaseWidth = 375;
 const scale = (size: number) => (SCREEN_WIDTH / guidelineBaseWidth) * size;
-const TOOLTIP_TRIGGER_WIDTH = 44;
-const HEADER_ACTION_GAP = scale(8);
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
@@ -300,16 +297,6 @@ const HomeScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.screen}>
-        <PopoverTooltip
-          tooltipText={
-            "Welcome to your Home Screen! Here you can:\n" +
-            "\u2022 track weekly tasks\n" +
-            "\u2022 adjust the quantities if needed\n" +
-            "\u2022 navigate between weeks.\n\n" +
-            "The red lines on some progression bars represent the minimal weekly amounts you should aim for!"
-          }
-        />
-
         <View style={styles.headerRow}>
           <Text variant="headlineSmall" style={styles.weekLabel}>
             Week {currentWeekIndex + 1}
@@ -504,7 +491,7 @@ const styles = StyleSheet.create({
   },
   shareButton: {
     position: 'absolute',
-    right: scale(16) + TOOLTIP_TRIGGER_WIDTH + HEADER_ACTION_GAP,
+    right: scale(16),
     borderRadius: scale(16),
   },
   shareButtonContent: {

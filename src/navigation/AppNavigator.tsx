@@ -2,7 +2,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import HomeScreen from '../screens/HomeScreen';
@@ -12,9 +12,27 @@ import ProspectListScreen from '../screens/ProspectListScreen';
 import TaskLogScreen from '../screens/TaskLogScreen';
 import { useTheme } from 'react-native-paper';
 import theme from '../theme';
+import PopoverTooltip from '../components/PopoverTooltip';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+
+const HEADER_TOOLTIPS: Record<string, string> = {
+    Home:
+        "Welcome to your Home Screen! Here you can:\n" +
+        "\u2022 track weekly tasks\n" +
+        "\u2022 adjust the quantities if needed\n" +
+        "\u2022 navigate between weeks.\n\n" +
+        "The red lines on some progression bars represent the minimal weekly amounts you should aim for!",
+    Progress:
+        "Welcome to your Progress Screen! Here you can view your daily progress trends, toggle between weekly and all-time views, and analyze your performance.\n\nThe red area is below the minimal threshold, so try to keep all your tasks above it!",
+    "Log Task":
+        "Welcome to your Task Log Screen! Here you can log tasks by selecting a task type, adjusting the amount, and picking a date.",
+    "15/30":
+        "Welcome to your Pipeline Contacts screen! Here you can manage your pipeline contacts and add prospects to the pipeline.",
+    Contacts:
+        "Welcome to your Contacts Page! Manage and filter your contacts here.",
+};
 
 // Gradient Header Background Component
 const HeaderBackground = () => {
@@ -35,40 +53,56 @@ function MainTabs() {
 
     return (
         <Tab.Navigator
-            screenOptions={{
-                headerTransparent: false,
-                headerStyle: {
-                    backgroundColor: 'transparent',
-                    height: 100,
-                },
-                headerTitleAlign: 'center',
-                headerTintColor: colors.onPrimary,
-                headerTitleStyle: { fontWeight: 'bold' },
-                headerBackground: () => <HeaderBackground />,
-                tabBarActiveTintColor: colors.primary,
-                tabBarStyle: {
-                    backgroundColor: colors.surface,
-                    height: 60,
-                    paddingBottom: 0,
-                },
-                tabBarItemStyle: {
-                    height: 60,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    paddingBottom: 0,
-                },
-                tabBarIconStyle: {
-                    marginTop: 0,
-                    marginBottom: 0,
-                    flex: 0,
-                },
-                tabBarLabelStyle: {
-                    marginTop: 3,
-                    fontSize: 10,
-                    flexWrap: 'wrap',
-                    width: 60,           // tweak until it fits nicely
-                    textAlign: 'center', // center the wrapped text
-                },
+            screenOptions={({ route }) => {
+                const tooltipText = HEADER_TOOLTIPS[route.name];
+
+                return {
+                    headerTransparent: false,
+                    headerStyle: {
+                        backgroundColor: 'transparent',
+                        height: 100,
+                    },
+                    headerTitleAlign: 'center',
+                    headerTintColor: colors.onPrimary,
+                    headerTitleStyle: { fontWeight: 'bold' },
+                    headerBackground: () => <HeaderBackground />,
+                    headerRight: () => (
+                        <View style={styles.headerActions}>
+                            {tooltipText && (
+                                <PopoverTooltip
+                                    tooltipText={tooltipText}
+                                    absolute={false}
+                                    offset={4}
+                                    containerStyle={styles.headerTooltipButton}
+                                />
+                            )}
+                        </View>
+                    ),
+                    tabBarActiveTintColor: colors.primary,
+                    tabBarStyle: {
+                        backgroundColor: colors.surface,
+                        height: 60,
+                        paddingBottom: 0,
+                    },
+                    tabBarItemStyle: {
+                        height: 60,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        paddingBottom: 0,
+                    },
+                    tabBarIconStyle: {
+                        marginTop: 0,
+                        marginBottom: 0,
+                        flex: 0,
+                    },
+                    tabBarLabelStyle: {
+                        marginTop: 3,
+                        fontSize: 10,
+                        flexWrap: 'wrap',
+                        width: 60,           // tweak until it fits nicely
+                        textAlign: 'center', // center the wrapped text
+                    },
+                };
             }}
         >
             <Tab.Screen
@@ -152,5 +186,13 @@ export default function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
-    // No longer needed as we're using StyleSheet.absoluteFill
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginRight: 8,
+    },
+    headerTooltipButton: {
+        width: 40,
+        height: 40,
+    },
 });

@@ -20,7 +20,6 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
-import PopoverTooltip from '../components/PopoverTooltip';
 import { TouchableWithoutFeedback } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -248,10 +247,6 @@ const TaskLogScreen = () => {
             keyboardShouldPersistTaps="handled"
           >
             <View style={styles.innerContent}>
-              <PopoverTooltip
-                tooltipText="Welcome to your Task Log Screen! Here you can log tasks by selecting a task type, adjusting the amount, and picking a date."
-              />
-
               <View style={styles.headerRow}>
                 <View style={styles.headerLeftPlaceholder} />
                 <Text style={styles.headerTitle}>Select Task Type:</Text>
