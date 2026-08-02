@@ -77,7 +77,7 @@ const EditPipelineClientModal = ({
     };
 
 
-    const scrollToInput = (ref: React.RefObject<View>) => {
+    const scrollToInput = (ref: React.RefObject<View | null>) => {
         if (!ref.current || !scrollRef.current) return;
         const nodeHandle = findNodeHandle(ref.current);
         if (nodeHandle) {

@@ -82,15 +82,15 @@ const ContactModal: React.FC<ContactModalProps> = ({
 
     const scrollRef = useRef<ScrollView>(null);
     const refs = {
-        first: useRef(null),
-        last: useRef(null),
-        email: useRef(null),
-        phone: useRef(null),
-        address: useRef(null),
-        note: useRef(null),
+        first: useRef<View>(null),
+        last: useRef<View>(null),
+        email: useRef<View>(null),
+        phone: useRef<View>(null),
+        address: useRef<View>(null),
+        note: useRef<View>(null),
     };
 
-    const scrollToInput = (ref: React.RefObject<View>) => {
+    const scrollToInput = (ref: React.RefObject<View | null>) => {
         const node = findNodeHandle(ref.current);
         if (node && scrollRef.current) {
             scrollRef.current.scrollResponderScrollNativeHandleToKeyboard(
@@ -297,15 +297,15 @@ const AgentModal: React.FC<AgentModalProps> = ({
 
     const scrollRef = useRef<ScrollView>(null);
     const refs = {
-        name: useRef(null),
-        phone: useRef(null),
-        email: useRef(null),
-        address: useRef(null),
-        brokerage: useRef(null),
-        notes: useRef(null),
+        name: useRef<View>(null),
+        phone: useRef<View>(null),
+        email: useRef<View>(null),
+        address: useRef<View>(null),
+        brokerage: useRef<View>(null),
+        notes: useRef<View>(null),
     };
 
-    const scrollToInput = (ref: React.RefObject<View>) => {
+    const scrollToInput = (ref: React.RefObject<View | null>) => {
         const node = findNodeHandle(ref.current);
         if (node && scrollRef.current) {
             scrollRef.current.scrollResponderScrollNativeHandleToKeyboard(

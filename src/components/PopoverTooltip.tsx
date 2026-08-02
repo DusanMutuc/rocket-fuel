@@ -52,7 +52,7 @@ const HeaderTooltip: React.FC<HeaderTooltipProps> = ({
                 <Popover
                     isVisible={visible}
                     onRequestClose={() => setVisible(false)}
-                    from={triggerRef}
+                    from={triggerRef as React.RefObject<React.Component>}
                     mode={PopoverMode.TOOLTIP}
                     placement={PopoverPlacement.BOTTOM}
                     displayArea={{ x: 0, y: 0, width, height }}
